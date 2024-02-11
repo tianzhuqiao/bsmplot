@@ -1,0 +1,15 @@
+*.pyc
+*.pyo
+*.dll
+*.bsm
+*.zip
+*.o
+*.so
+venv*/
+build/
+dist/
+*egg-info/
+*cache/
+.DS_Store
+*.npy
+*.mov
