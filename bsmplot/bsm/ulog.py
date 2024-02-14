@@ -5,8 +5,8 @@ import wx
 import wx.py.dispatcher as dp
 import pyulog
 import pandas as pd
-from .pymgr_helpers import Gcm
-from .fileviewbase import ListCtrlBase, TreeCtrlWithTimeStamp, PanelNotebookBase, FileViewBase
+from bsmutility.pymgr_helpers import Gcm
+from bsmutility.fileviewbase import ListCtrlBase, TreeCtrlWithTimeStamp, PanelNotebookBase, FileViewBase
 
 def load_ulog(filename):
     try:

@@ -8,10 +8,10 @@ import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype, is_integer_dtype
 from vcd.reader import TokenKind, tokenize
-from .pymgr_helpers import Gcm
-from .utility import _dict, get_variable_name, send_data_to_shell
-from .utility import build_tree
-from .fileviewbase import ListCtrlBase, TreeCtrlWithTimeStamp, PanelNotebookBase, FileViewBase
+from bsmutility.pymgr_helpers import Gcm
+from bsmutility.utility import _dict, get_variable_name, send_data_to_shell
+from bsmutility.utility import build_tree
+from bsmutility.fileviewbase import ListCtrlBase, TreeCtrlWithTimeStamp, PanelNotebookBase, FileViewBase
 from ..pvcd.pvcd import load_vcd as load_vcd2
 
 def load_vcd3(filename):

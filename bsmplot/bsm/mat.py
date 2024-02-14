@@ -4,8 +4,8 @@ import traceback
 import wx
 import wx.py.dispatcher as dp
 from scipy import io
-from .pymgr_helpers import Gcm
-from .fileviewbase import TreeCtrlNoTimeStamp, ListCtrlBase, PanelNotebookBase, FileViewBase
+from bsmutility.pymgr_helpers import Gcm
+from bsmutility.fileviewbase import TreeCtrlNoTimeStamp, ListCtrlBase, PanelNotebookBase, FileViewBase
 
 def process_record(d):
     if d.dtype.names is None:

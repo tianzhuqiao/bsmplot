@@ -5,9 +5,9 @@ from csv import Sniffer
 import wx
 import wx.py.dispatcher as dp
 import pandas as pd
-from .pymgr_helpers import Gcm
-from .utility import build_tree
-from .fileviewbase import TreeCtrlNoTimeStamp, PanelNotebookBase, FileViewBase
+from bsmutility.pymgr_helpers import Gcm
+from bsmutility.utility import build_tree
+from bsmutility.fileviewbase import TreeCtrlNoTimeStamp, PanelNotebookBase, FileViewBase
 
 def read_csv(filename):
     sep = ','

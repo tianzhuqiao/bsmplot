@@ -13,12 +13,12 @@ import numpy as np
 import pandas as pd
 import zmq
 import propgrid as pg
-from .bsmxpm import open_svg, run_svg, run_grey_svg, pause_svg, pause_grey_svg, \
-                    stop_svg, stop_grey_svg
-from .utility import svg_to_bitmap
-from .pymgr_helpers import Gcm
-from .utility import build_tree
-from .fileviewbase import TreeCtrlNoTimeStamp, PanelNotebookBase, FileViewBase
+from bsmutility.bsmxpm import open_svg, run_svg, run_grey_svg, pause_svg, pause_grey_svg, \
+                              stop_svg, stop_grey_svg
+from bsmutility.utility import svg_to_bitmap
+from bsmutility.pymgr_helpers import Gcm
+from bsmutility.utility import build_tree
+from bsmutility.fileviewbase import TreeCtrlNoTimeStamp, PanelNotebookBase, FileViewBase
 
 
 def flatten(dictionary, parent_key='', separator='.'):
