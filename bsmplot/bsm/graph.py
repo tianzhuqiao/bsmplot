@@ -229,13 +229,13 @@ class Graph(Interface):
         if command == cls.ID_PANE_CLOSE:
             dp.send(signal='frame.delete_panel', panel=pane)
         elif command == cls.ID_PANE_CLOSE_OTHERS:
-            mgrs =  MatplotPanel.Gcf.get_all_fig_managers()
+            mgrs = Gcf.get_all_fig_managers()
             for mgr in mgrs:
                 if mgr == pane:
                     continue
                 dp.send(signal='frame.delete_panel', panel=mgr)
         elif command == cls.ID_PANE_CLOSE_ALL:
-            mgrs =  MatplotPanel.Gcf.get_all_fig_managers()
+            mgrs = Gcf.get_all_fig_managers()
             for mgr in mgrs:
                 dp.send(signal='frame.delete_panel', panel=mgr)
 
@@ -251,7 +251,7 @@ class Graph(Interface):
     @classmethod
     def OnBufferChanged(cls, bufs):
         """the buffer has be changes, update the plot_trace"""
-        for p in MatplotPanel.Gcf.get_all_fig_managers():
+        for p in Gcf.get_all_fig_managers():
             p.update_buffer(bufs)
 
     @classmethod
