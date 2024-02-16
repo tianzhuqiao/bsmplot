@@ -202,6 +202,7 @@ class Graph(Interface):
     ID_PANE_CLOSE = wx.NewIdRef()
     ID_PANE_CLOSE_OTHERS = wx.NewIdRef()
     ID_PANE_CLOSE_ALL = wx.NewIdRef()
+    MENU_NEW_FIG = 'File:New:Figure\tCtrl+P'
 
     @classmethod
     def initialize(cls, frame, **kwargs):
@@ -211,7 +212,7 @@ class Graph(Interface):
         MatplotPanel.Initialize(frame, **kwargs)
 
         resp = dp.send('frame.add_menu',
-                       path='File:New:Figure\tCtrl+P',
+                       path=cls.MENU_NEW_FIG,
                        rxsignal='bsm.figure')
         if resp:
             cls.ID_NEW_FIGURE = resp[0][1]
@@ -257,6 +258,14 @@ class Graph(Interface):
     @classmethod
     def SetActive(cls, pane):
         MatplotPanel.SetActive(pane)
+
+    @classmethod
+    def uninitializing(cls):
+        super().uninitializing()
+        # before save perspective
+        for mgr in Gcf.get_all_fig_managers():
+            dp.send('frame.delete_panel', panel=mgr)
+        dp.send('frame.delete_menu', path=cls.MENU_NEW_FIG, id=cls.ID_NEW_FIGURE)
 
     @classmethod
     def uninitialized(cls):
