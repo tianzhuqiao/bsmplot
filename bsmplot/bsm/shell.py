@@ -44,7 +44,7 @@ class SHELL(Interface):
             cls.shell.redirectStderr(redirect)
 
     @classmethod
-    def uninitialize(cls):
+    def uninitialized(cls):
         if cls.shell:
             cls.shell.redirectStdout(False)
             cls.shell.redirectStderr(False)
