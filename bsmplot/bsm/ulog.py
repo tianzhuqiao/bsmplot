@@ -4,9 +4,14 @@ import traceback
 import wx
 import wx.py.dispatcher as dp
 import pyulog
+import numpy as np
 import pandas as pd
 from bsmutility.pymgr_helpers import Gcm
 from bsmutility.fileviewbase import ListCtrlBase, TreeCtrlWithTimeStamp, PanelNotebookBase, FileViewBase
+from bsmutility.bsmxpm import more_svg
+from bsmutility.utility import svg_to_bitmap, build_tree, get_tree_item_name
+from propgrid import PropText, PropChoice, PropSeparator
+from .quaternion import Quaternion
 
 def load_ulog(filename):
     try:
@@ -19,6 +24,7 @@ def load_ulog(filename):
     for d in ulg.data_list:
         df = pd.DataFrame(d.data)
         data[d.name] = df
+    data = build_tree(data)
     t = [m.timestamp for m in ulg.logged_messages]
     m = [m.message for m in ulg.logged_messages]
     l = [m.log_level_str() for m in ulg.logged_messages]
@@ -30,35 +36,6 @@ def load_ulog(filename):
             'changed_param': changed_param}
 
 class ULogTree(TreeCtrlWithTimeStamp):
-
-    def get_children(self, item):
-        """ callback function to return the children of item """
-        children = []
-        is_folder = False
-        pattern = self.pattern
-        if item == self.GetRootItem():
-            children = list(self.data.keys())
-            is_folder = True
-            if pattern:
-                temp = []
-                for c in children:
-                    dataset = list(self.data[c].columns)
-                    dataset.remove('timestamp')
-                    if any(pattern in s for s in dataset):
-                        self.expanded[c] = True
-                        temp.append(c)
-                    elif pattern in c:
-                        temp.append(c)
-                children = temp
-        else:
-            parent = self.GetItemText(item)
-            if parent in self.data:
-                children = list(self.data[parent].columns)
-                children.remove('timestamp')
-                if pattern and pattern not in parent:
-                    children = [c for c in children if pattern in c]
-        children = [{'label': c, 'img':-1, 'imgsel':-1, 'data': None, 'is_folder': is_folder} for c in children]
-        return children
 
     def GetItemPlotData(self, item):
         x, y = super().GetItemPlotData(item)
@@ -206,6 +183,10 @@ class ChgParamListCtrl(ListCtrlBase):
 
 class ULogPanel(PanelNotebookBase):
     Gcc = Gcm()
+    ID_MORE = wx.NewIdRef()
+    ID_QUATERNION_RPY = wx.NewIdRef()
+    ID_RAD_TO_DEG = wx.NewIdRef()
+    ID_DEG_TO_RAD = wx.NewIdRef()
 
     def __init__(self, parent, filename=None):
         self.ulg = None
@@ -214,6 +195,12 @@ class ULogPanel(PanelNotebookBase):
         self.Bind(wx.EVT_TEXT, self.OnDoSearch, self.search)
         self.Bind(wx.EVT_TEXT, self.OnDoSearchLog, self.search_log)
         self.Bind(wx.EVT_TEXT, self.OnDoSearchParam, self.search_param)
+
+    def init_toolbar(self):
+        super().init_toolbar()
+        self.tb.AddStretchSpacer()
+        self.tb.AddTool(self.ID_MORE, "More", svg_to_bitmap(more_svg, win=self),
+                        wx.NullBitmap, wx.ITEM_NORMAL, "More")
 
     def init_pages(self):
         # data page
@@ -233,6 +220,73 @@ class ULogPanel(PanelNotebookBase):
         self.notebook.AddPage(self.chgParamList, 'Changed Param')
 
         self.ulg = None
+
+    def OnProcessCommand(self, event):
+        eid = event.GetId()
+        selections = []
+        for item in self.tree.GetSelections():
+            selections.append(get_tree_item_name(self.tree.GetItemPath(item)))
+
+        if eid == self.ID_MORE:
+            menu = wx.Menu()
+            menu.Append(self.ID_QUATERNION_RPY, 'Quaternion to Roll/Pitch/Yaw')
+            menu.Append(self.ID_RAD_TO_DEG, 'Radian to degree')
+            menu.Append(self.ID_DEG_TO_RAD, 'Degree to radian')
+            self.PopupMenu(menu)
+
+        elif eid == self.ID_QUATERNION_RPY:
+            additional = [PropSeparator().Label('Output'),
+                          PropChoice(['Degree', 'Radian']).Label('Format')
+                                     .Name('format').Value('Degree'),
+                          PropText().Label("Name").Name('name').Value('ypr')]
+            values = None
+            if len(selections) == 4:
+                values = {'w': selections[0], 'x': selections[1],
+                          'y': selections[2], 'z': selections[3]}
+            df_in, settings = self.tree.SelectSignal(items=['w', 'x', 'y', 'z'],
+                                                     values=values,
+                                                     config='ulog.quaternion',
+                                                     additional = additional)
+            if df_in is not None:
+                q = Quaternion(df_in['w'], df_in['x'], df_in['y'], df_in['z']).to_angle()
+                radian = settings['format'] == 'Radian'
+                df = pd.DataFrame()
+                df[self.tree.timestamp_key] = df_in[self.tree.timestamp_key]
+                df['yaw'] = q[0] if not radian else np.deg2rad(q[0])
+                df['pitch'] = q[1] if not radian else np.deg2rad(q[1])
+                df['roll'] = q[2] if not radian else np.deg2rad(q[2])
+                self.tree.UpdateData({settings.get('name', 'ypr'): df})
+
+        elif eid == self.ID_RAD_TO_DEG:
+            additional = [PropSeparator().Label('Output'),
+                          PropText().Label("Name").Name('name').Value('degree')]
+            values= {'Radian': selections[0]} if selections else None
+            df, settings = self.tree.SelectSignal(items=['Radian'],
+                                                  values=values,
+                                                  config='ulog.rad2deg',
+                                                  additional=additional)
+            if df is not None:
+                name = f"{settings['Radian']}_to_deg"
+                df[name] = np.rad2deg(df['Radian'])
+                df.drop(columns=['Radian'], inplace=True)
+                self.tree.UpdateData({settings.get('name', 'degree'): df})
+
+        elif eid == self.ID_DEG_TO_RAD:
+            additional = [PropSeparator().Label('Output'),
+                          PropText().Label("Name").Name('name').Value('radian')]
+            values= {'Degree': selections[0]} if selections else None
+            df, settings = self.tree.SelectSignal(items=['Degree'],
+                                                  values=values,
+                                                  config='ulog.deg2rad',
+                                                  additional=additional)
+            if df is not None:
+                name = f"{settings['Degree']}_to_rad"
+                df[name] = np.deg2rad(df['Degree'])
+                df.drop(columns=['Degree'], inplace=True)
+                self.tree.UpdateData({settings.get('name', 'radian'): df})
+
+        else:
+            super().OnProcessCommand(event)
 
     def Load(self, filename, add_to_history=True):
         """load the ulog file"""

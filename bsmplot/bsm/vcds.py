@@ -2,6 +2,7 @@ import os
 import sys
 import re
 import traceback
+from collections.abc import MutableMapping
 import wx
 import wx.py.dispatcher as dp
 import numpy as np
@@ -92,7 +93,8 @@ def load_vcd(filename):
 def GetDataBit(value, bit):
     if not is_integer_dtype(value) or bit < 0:
         return None
-    return value.map(lambda x: (x >> bit) & 1)
+    f = lambda x: (x >> bit) & 1
+    return f(value)
 
 class VcdTree(TreeCtrlWithTimeStamp):
     ID_VCD_EXPORT = wx.NewIdRef()
@@ -118,6 +120,29 @@ class VcdTree(TreeCtrlWithTimeStamp):
     ID_VCD_TO_FLOAT64 = wx.NewIdRef()
     ID_VCD_TO_FLOAT128 = wx.NewIdRef()
 
+    def _is_folder(self, d):
+        # for the vcd data, each node is also an dict, i.e,
+        #  {NodeName: {NodeName: value, 'raw': raw_value}
+        for k in d:
+            return isinstance(d[k], MutableMapping)
+        return False
+
+    def GetItemPath(self, item):
+        path = super().GetItemPath(item)
+        if self.ItemHasChildren(item):
+            return path
+        data = self.GetItemDataFromPath(path)
+        if not self._is_folder(data):
+            # node item is one layer deeper
+            while isinstance(data, MutableMapping):
+                for k in data:
+                    if k in [self.timestamp_key, 'raw']:
+                        continue
+                    path += [k]
+                    data = data[k]
+                    break
+        return path
+
     def Load(self, data):
         """load the vcd file"""
         vcd = _dict(data)
@@ -126,16 +151,25 @@ class VcdTree(TreeCtrlWithTimeStamp):
     def GetPlotXLabel(self):
         return 't(s)'
 
+    def GetItemTimeStamp(self, item):
+        if self.ItemHasChildren(item):
+            return None
+        path = super().GetItemPath(item)
+        data = self.GetItemDataFromPath(path)
+        if self.timestamp_key in data:
+            return data[self.timestamp_key]
+        return None
+
     def GetItemPlotData(self, item):
         x, y = super().GetItemPlotData(item)
         if x is not None:
-            x *= self.data.get('timescale', 1e-6)*1e6
+            x = x * self.data.get('timescale', 1e-6)*1e6
         return x, y
 
     def GetItemDragData(self, item):
         data = super().GetItemDragData(item)
         if self.timestamp_key in data:
-            data.timestamp *= self.data.get('timescale', 1e-6) * 1e6
+            data['timestamp'] *= self.data.get('timescale', 1e-6) * 1e6
         return data
 
     def GetDataBits(self, value):
@@ -157,11 +191,8 @@ class VcdTree(TreeCtrlWithTimeStamp):
         if not item.IsOk():
             return None
         path = self.GetItemPath(item)
-        data = self.GetItemData(item)
-        if data is None:
-            return None
-        value = data[path[-1]]
-        if len(value) == 0:
+        value = self.GetItemData(item)
+        if value is None:
             return None
 
         menu = wx.Menu()
@@ -222,15 +253,17 @@ class VcdTree(TreeCtrlWithTimeStamp):
 
     def OnProcessCommand(self, cmd, item):
         text = self.GetItemText(item)
-        path = self.GetItemPath(item)
-        data = self.GetItemData(item)
-        value = data[path[-1]]
+        path = super().GetItemPath(item)
+        data = self.GetItemDataFromPath(path)
+        value = self.GetItemData(item)
         if not path:
             return
 
         def _as_type(nptype):
             try:
-                value = data.raw.map(lambda x: int(x, 2))
+                series = pd.Series(data['raw'])
+                f = lambda x: int(x, 2)
+                value = series.map(f).to_numpy()
                 data[path[-1]] = value.astype(nptype)
                 return
             except ValueError:
@@ -238,13 +271,13 @@ class VcdTree(TreeCtrlWithTimeStamp):
             except OverflowError:
                 data[path[-1]] = value
             try:
-                value = data.raw.astype(nptype)
+                value = data['raw'].astype(nptype)
                 data[path[-1]] = value
                 return
             except ValueError:
                 pass
             try:
-                value = data.raw.astype(np.float128)
+                value = data['raw'].astype(np.float128)
                 data[path[-1]] = value.astype(nptype)
                 return
             except ValueError:
@@ -254,36 +287,27 @@ class VcdTree(TreeCtrlWithTimeStamp):
         if cmd in [self.ID_VCD_EXPORT, self.ID_VCD_EXPORT_WITH_TIMESTAMP,
                    self.ID_VCD_EXPORT_RAW, self.ID_VCD_EXPORT_RAW_WITH_TIMESTAMP]:
             name = get_variable_name(path)
-            command = f'{name}=VCD.get()'
-            for p in path:
-                command += f'["{p}"]'
-            if cmd == self.ID_VCD_EXPORT_WITH_TIMESTAMP:
-                command += f'.get(["timestamp", "{path[-1]}"])'
-            elif cmd == self.ID_VCD_EXPORT_RAW_WITH_TIMESTAMP:
-                command += '.get(["timestamp", "raw"])'
-            elif cmd == self.ID_VCD_EXPORT_RAW:
-                command += '.get(["raw"])'
+            df = pd.DataFrame()
+            if cmd in [self.ID_VCD_EXPORT_WITH_TIMESTAMP,
+                       self.ID_VCD_EXPORT_RAW_WITH_TIMESTAMP]:
+                df[self.timestamp_key] = data[self.timestamp_key]
+            if cmd in [self.ID_VCD_EXPORT_RAW,
+                       self.ID_VCD_EXPORT_RAW_WITH_TIMESTAMP]:
+                df[path[-1]] = data['raw']
             else:
-                command += f'.get(["{path[-1]}"])'
-            dp.send(signal='shell.run',
-                command=command,
-                prompt=False,
-                verbose=False,
-                history=True)
-            dp.send(signal='shell.run',
-                command=f'{name}',
-                prompt=True,
-                verbose=True,
-                history=False)
+                df[path[-1]] = data[path[-1]]
+            send_data_to_shell(name, df)
+
         elif cmd in [self.ID_VCD_EXPORT_BITS, self.ID_VCD_EXPORT_BITS_WITH_TIMESTAMP]:
             df = self.GetDataBits(value)
+            name = get_variable_name(path)
             if df is not None:
                 if cmd == self.ID_VCD_EXPORT_BITS_WITH_TIMESTAMP:
-                    df.insert(loc=0, column='timestamp',  value=data['timestamp'])
+                    df.insert(loc=0, column=self.timestamp_key, value=data[self.timestamp_key])
                 send_data_to_shell(name, df)
 
         elif cmd in [self.ID_VCD_PLOT, self.ID_VCD_PLOT_BITS, self.ID_VCD_PLOT_BITS_VERT]:
-            x = data['timestamp']*self.data.get('timescale', 1e-6)*1e6
+            x = data[self.timestamp_key]*self.data.get('timescale', 1e-6)*1e6
             if cmd == self.ID_VCD_PLOT:
                 self.plot(x, value, '/'.join(path))
                 return
@@ -297,21 +321,25 @@ class VcdTree(TreeCtrlWithTimeStamp):
                     self.plot(x, df[bit], '/'.join(path+[bit]), step=True)
 
         elif cmd == self.ID_VCD_TO_PYINT:
+            series = pd.Series(data['raw'])
             try:
-                value = data.raw.map(lambda x: int(x, 2))
-                data[path[-1]] = value
+                f = lambda x: int(x, 2)
+                value = series.map(f)
+                data[path[-1]] = value.to_array()
                 return
             except ValueError:
                 pass
             try:
-                value = data.raw.map(lambda x: int(x))
-                data[path[-1]] = value
+                f = lambda x: int(x)
+                value = series.map(f)
+                data[path[-1]] = value.to_numpy()
                 return
             except ValueError:
                 pass
             try:
-                value = data.raw.map(lambda x: int(float(x)))
-                data[path[-1]] = value
+                f = lambda x: int(float(x))
+                value = series.map(f)
+                data[path[-1]] = value.to_numpy()
                 return
             except ValueError:
                 pass
