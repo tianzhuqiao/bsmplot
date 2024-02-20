@@ -37,6 +37,21 @@ def load_ulog(filename):
 
 class ULogTree(TreeCtrlWithTimeStamp):
 
+    ID_QUATERNION_RPY = wx.NewIdRef()
+    ID_RAD_TO_DEG = wx.NewIdRef()
+    ID_DEG_TO_RAD = wx.NewIdRef()
+
+    def GetItemMenu(self, item):
+        menu = super().GetItemMenu(item)
+        if menu is None:
+            return None
+        if not self.ItemHasChildren(item):
+            menu.AppendSeparator()
+            menu.Append(self.ID_QUATERNION_RPY, 'Quaternion to Roll/Pitch/Yaw')
+            menu.Append(self.ID_RAD_TO_DEG, 'Radian to degree')
+            menu.Append(self.ID_DEG_TO_RAD, 'Degree to radian')
+        return menu
+
     def GetItemPlotData(self, item):
         x, y = super().GetItemPlotData(item)
         if x is not None:
@@ -52,6 +67,115 @@ class ULogTree(TreeCtrlWithTimeStamp):
 
     def GetPlotXLabel(self):
         return "t(s)"
+
+    def Quaternion2YPR(self, paths=None, item=None):
+        start = ''
+        config = 'ulog.quaternion'
+        name = '~'
+        if item is not None and item.IsOk() and self.ItemHasChildren(item):
+            path = self.GetItemPath(item)
+            start = get_tree_item_name(path)
+            config += ".".join(path)
+            name = ''
+
+        additional = [PropSeparator().Label('Output'),
+                      PropChoice(['Degree', 'Radian']).Label('Format')
+                                 .Name('format').Value('Degree'),
+                      PropText().Label("Name").Name('name').Value(name)]
+        values = None
+        if paths is not None and len(paths) == 4:
+            values = {'w': paths[0], 'x': paths[1],
+                      'y': paths[2], 'z': paths[3]}
+        df_in, settings = self.SelectSignal(items=['w', 'x', 'y', 'z'],
+                                            values=values,
+                                            config=config,
+                                            additional = additional,
+                                            start=start)
+        if df_in is not None:
+            q = Quaternion(df_in['w'], df_in['x'], df_in['y'], df_in['z']).to_angle()
+            radian = settings['format'] == 'Radian'
+            df = pd.DataFrame()
+            df['yaw'] = q[0] if not radian else np.deg2rad(q[0])
+            df['pitch'] = q[1] if not radian else np.deg2rad(q[1])
+            df['roll'] = q[2] if not radian else np.deg2rad(q[2])
+            if start:
+                # add columns to same DataFrame
+                data = self.GetItemData(item)
+                name = settings.get('name', '')
+                data[f'{name}yaw'] = df['yaw']
+                data[f'{name}pitch'] = df['pitch']
+                data[f'{name}roll'] = df['roll']
+                self.RefreshChildren(item)
+            else:
+                self.UpdateData({settings.get('name', 'ypr'): df})
+
+    def ConvertRad2Deg(self, path=None, item=None):
+        if item is not None and item.IsOk():
+            # convert an item, insert it to the same DataFrame
+            value = self.GetItemData(item)
+            name = self.GetItemText(item)
+            parent = self.GetItemParent(item)
+            dataset = self.GetItemData(parent)
+            if isinstance(dataset, pd.DataFrame):
+                dataset[f'{name}_deg'] = np.rad2deg(value)
+            self.RefreshChildren(parent)
+            return
+
+        additional = [PropSeparator().Label('Output'),
+                      PropText().Label("Name").Name('name').Value('degree')]
+        values= {'Radian': path} if path else None
+        df, settings = self.SelectSignal(items=['Radian'],
+                                         values=values,
+                                         config='ulog.rad2deg',
+                                         additional=additional)
+        if df is not None:
+            name = f"{settings['Radian']}_to_deg"
+            name = name.split('.')[-1]
+            df[name] = np.rad2deg(df['Radian'])
+            df.drop(columns=['Radian'], inplace=True)
+            self.UpdateData({settings.get('name', 'degree'): df})
+
+    def ConvertDeg2Rad(self, path=None, item=None):
+        if item is not None and item.IsOk():
+            # convert an item, insert it to the same DataFrame
+            value = self.GetItemData(item)
+            name = self.GetItemText(item)
+            parent = self.GetItemParent(item)
+            dataset = self.GetItemData(parent)
+            if isinstance(dataset, pd.DataFrame):
+                dataset[f'{name}_rad'] = np.deg2rad(value)
+            self.RefreshChildren(parent)
+            return
+
+        additional = [PropSeparator().Label('Output'),
+                      PropText().Label("Name").Name('name').Value('radian')]
+        values= {'Degree': path} if path else None
+        df, settings = self.SelectSignal(items=['Degree'],
+                                         values=values,
+                                         config='ulog.deg2rad',
+                                         additional=additional)
+        if df is not None:
+            name = f"{settings['Degree']}_to_rad"
+            df[name] = np.deg2rad(df['Degree'])
+            df.drop(columns=['Degree'], inplace=True)
+            self.UpdateData({settings.get('name', 'radian'): df})
+
+    def OnProcessCommand(self, cmd, item):
+        path = None
+        if item.IsOk():
+            path = get_tree_item_name(self.GetItemPath(item))
+
+        if cmd == self.ID_QUATERNION_RPY:
+            parent = self.GetItemParent(item)
+            self.Quaternion2YPR(item=parent)
+
+        elif cmd == self.ID_RAD_TO_DEG:
+            self.ConvertRad2Deg(item=item)
+
+        elif cmd == self.ID_DEG_TO_RAD:
+            self.ConvertDeg2Rad(item=item)
+        else:
+            super().OnProcessCommand(cmd, item)
 
 class MessageListCtrl(ListCtrlBase):
 
@@ -184,9 +308,6 @@ class ChgParamListCtrl(ListCtrlBase):
 class ULogPanel(PanelNotebookBase):
     Gcc = Gcm()
     ID_MORE = wx.NewIdRef()
-    ID_QUATERNION_RPY = wx.NewIdRef()
-    ID_RAD_TO_DEG = wx.NewIdRef()
-    ID_DEG_TO_RAD = wx.NewIdRef()
 
     def __init__(self, parent, filename=None):
         self.ulg = None
@@ -228,63 +349,7 @@ class ULogPanel(PanelNotebookBase):
             selections.append(get_tree_item_name(self.tree.GetItemPath(item)))
 
         if eid == self.ID_MORE:
-            menu = wx.Menu()
-            menu.Append(self.ID_QUATERNION_RPY, 'Quaternion to Roll/Pitch/Yaw')
-            menu.Append(self.ID_RAD_TO_DEG, 'Radian to degree')
-            menu.Append(self.ID_DEG_TO_RAD, 'Degree to radian')
-            self.PopupMenu(menu)
-
-        elif eid == self.ID_QUATERNION_RPY:
-            additional = [PropSeparator().Label('Output'),
-                          PropChoice(['Degree', 'Radian']).Label('Format')
-                                     .Name('format').Value('Degree'),
-                          PropText().Label("Name").Name('name').Value('ypr')]
-            values = None
-            if len(selections) == 4:
-                values = {'w': selections[0], 'x': selections[1],
-                          'y': selections[2], 'z': selections[3]}
-            df_in, settings = self.tree.SelectSignal(items=['w', 'x', 'y', 'z'],
-                                                     values=values,
-                                                     config='ulog.quaternion',
-                                                     additional = additional)
-            if df_in is not None:
-                q = Quaternion(df_in['w'], df_in['x'], df_in['y'], df_in['z']).to_angle()
-                radian = settings['format'] == 'Radian'
-                df = pd.DataFrame()
-                df[self.tree.timestamp_key] = df_in[self.tree.timestamp_key]
-                df['yaw'] = q[0] if not radian else np.deg2rad(q[0])
-                df['pitch'] = q[1] if not radian else np.deg2rad(q[1])
-                df['roll'] = q[2] if not radian else np.deg2rad(q[2])
-                self.tree.UpdateData({settings.get('name', 'ypr'): df})
-
-        elif eid == self.ID_RAD_TO_DEG:
-            additional = [PropSeparator().Label('Output'),
-                          PropText().Label("Name").Name('name').Value('degree')]
-            values= {'Radian': selections[0]} if selections else None
-            df, settings = self.tree.SelectSignal(items=['Radian'],
-                                                  values=values,
-                                                  config='ulog.rad2deg',
-                                                  additional=additional)
-            if df is not None:
-                name = f"{settings['Radian']}_to_deg"
-                df[name] = np.rad2deg(df['Radian'])
-                df.drop(columns=['Radian'], inplace=True)
-                self.tree.UpdateData({settings.get('name', 'degree'): df})
-
-        elif eid == self.ID_DEG_TO_RAD:
-            additional = [PropSeparator().Label('Output'),
-                          PropText().Label("Name").Name('name').Value('radian')]
-            values= {'Degree': selections[0]} if selections else None
-            df, settings = self.tree.SelectSignal(items=['Degree'],
-                                                  values=values,
-                                                  config='ulog.deg2rad',
-                                                  additional=additional)
-            if df is not None:
-                name = f"{settings['Degree']}_to_rad"
-                df[name] = np.deg2rad(df['Degree'])
-                df.drop(columns=['Degree'], inplace=True)
-                self.tree.UpdateData({settings.get('name', 'radian'): df})
-
+            pass
         else:
             super().OnProcessCommand(event)
 
