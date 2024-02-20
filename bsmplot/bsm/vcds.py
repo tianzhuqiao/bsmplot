@@ -11,7 +11,7 @@ from pandas.api.types import is_numeric_dtype, is_integer_dtype
 from vcd.reader import TokenKind, tokenize
 from bsmutility.pymgr_helpers import Gcm
 from bsmutility.utility import _dict, get_variable_name, send_data_to_shell
-from bsmutility.utility import build_tree
+from bsmutility.utility import build_tree, get_tree_item_path
 from bsmutility.fileviewbase import ListCtrlBase, TreeCtrlWithTimeStamp, PanelNotebookBase, FileViewBase
 from ..pvcd.pvcd import load_vcd as load_vcd2
 
@@ -93,8 +93,7 @@ def load_vcd(filename):
 def GetDataBit(value, bit):
     if not is_integer_dtype(value) or bit < 0:
         return None
-    f = lambda x: (x >> bit) & 1
-    return f(value)
+    return value.map(lambda x: (x >> bit) & 1)
 
 class VcdTree(TreeCtrlWithTimeStamp):
     ID_VCD_EXPORT = wx.NewIdRef()
@@ -120,45 +119,41 @@ class VcdTree(TreeCtrlWithTimeStamp):
     ID_VCD_TO_FLOAT64 = wx.NewIdRef()
     ID_VCD_TO_FLOAT128 = wx.NewIdRef()
 
-    def _is_folder(self, d):
-        # for the vcd data, each node is also an dict, i.e,
-        #  {NodeName: {NodeName: value, 'raw': raw_value}
-        for k in d:
-            return isinstance(d[k], MutableMapping)
-        return False
-
-    def GetItemPath(self, item):
-        path = super().GetItemPath(item)
-        if self.ItemHasChildren(item):
-            return path
-        data = self.GetItemDataFromPath(path)
-        if not self._is_folder(data):
-            # node item is one layer deeper
-            while isinstance(data, MutableMapping):
-                for k in data:
-                    if k in [self.timestamp_key, 'raw']:
-                        continue
-                    path += [k]
-                    data = data[k]
-                    break
-        return path
-
     def Load(self, data):
         """load the vcd file"""
         vcd = _dict(data)
         super().Load(vcd)
 
+    def _is_folder(self, d):
+        return isinstance(d, MutableMapping)
+
+    def GetItemFullDataFromPath(self, path):
+        if isinstance(path, str):
+            path = get_tree_item_path(path)
+        # path is an array, e.g., path = get_tree_item_path(name)
+        # vcd, the leaf node is a DataFrame with columns['timestamp', 'raw', NAME]
+        d = self.data
+        for p in path:
+            if p not in d:
+                return None
+            d = d[p]
+        return d
+
+    def GetItemDataFromPath(self, path):
+        d = self.GetItemFullDataFromPath(path)
+        if isinstance(d, pd.DataFrame):
+            keys = [ c for c in d.columns if c not in ['raw', self.timestamp_key]]
+            d = d[keys[0]] if keys else None
+        return d
+
+    def GetItemTimeStampFromPath(self, path):
+        d = self.GetItemFullDataFromPath(path)
+        if isinstance(d, pd.DataFrame) and self.timestamp_key in d:
+            return d[self.timestamp_key]
+        return None
+
     def GetPlotXLabel(self):
         return 't(s)'
-
-    def GetItemTimeStamp(self, item):
-        if self.ItemHasChildren(item):
-            return None
-        path = super().GetItemPath(item)
-        data = self.GetItemDataFromPath(path)
-        if self.timestamp_key in data:
-            return data[self.timestamp_key]
-        return None
 
     def GetItemPlotData(self, item):
         x, y = super().GetItemPlotData(item)
@@ -169,7 +164,7 @@ class VcdTree(TreeCtrlWithTimeStamp):
     def GetItemDragData(self, item):
         data = super().GetItemDragData(item)
         if self.timestamp_key in data:
-            data['timestamp'] *= self.data.get('timescale', 1e-6) * 1e6
+            data[self.timestamp_key] *= self.data.get('timescale', 1e-6) * 1e6
         return data
 
     def GetDataBits(self, value):
@@ -188,97 +183,100 @@ class VcdTree(TreeCtrlWithTimeStamp):
         return None
 
     def GetItemMenu(self, item):
-        if not item.IsOk():
+        if not item.IsOk() or self.ItemHasChildren(item):
             return None
-        path = self.GetItemPath(item)
         value = self.GetItemData(item)
         if value is None:
             return None
 
         menu = wx.Menu()
         menu.Append(self.ID_VCD_EXPORT, "&Export to shell")
-        menu.Append(self.ID_VCD_EXPORT_WITH_TIMESTAMP, "E&xport to shell with timestamp")
-        export_menu = wx.Menu()
-        export_menu.Append(self.ID_VCD_EXPORT_RAW, "Export raw value to shell")
-        export_menu.Append(self.ID_VCD_EXPORT_RAW_WITH_TIMESTAMP, "Export raw value to shell with timestamp")
-        if is_integer_dtype(value):
-            export_menu.AppendSeparator()
-            export_menu.Append(self.ID_VCD_EXPORT_BITS, "Export selected bits to shell")
-            export_menu.Append(self.ID_VCD_EXPORT_BITS_WITH_TIMESTAMP, "Export selected bits to shell with timestamp")
-        menu.AppendSubMenu(export_menu, 'More ...')
-        if is_numeric_dtype(value):
-            menu.AppendSeparator()
-            menu.Append(self.ID_VCD_PLOT, "Plot")
+        if isinstance(value, pd.Series):
+            menu.Append(self.ID_VCD_EXPORT_WITH_TIMESTAMP, "E&xport to shell with timestamp")
+            export_menu = wx.Menu()
+            export_menu.Append(self.ID_VCD_EXPORT_RAW, "Export raw value to shell")
+            export_menu.Append(self.ID_VCD_EXPORT_RAW_WITH_TIMESTAMP, "Export raw value to shell with timestamp")
             if is_integer_dtype(value):
-                menu.Append(self.ID_VCD_PLOT_BITS, "Plot selected bits")
-                menu.Append(self.ID_VCD_PLOT_BITS_VERT, "Plot selected bits vertically")
+                export_menu.AppendSeparator()
+                export_menu.Append(self.ID_VCD_EXPORT_BITS, "Export selected bits to shell")
+                export_menu.Append(self.ID_VCD_EXPORT_BITS_WITH_TIMESTAMP, "Export selected bits to shell with timestamp")
+            menu.AppendSubMenu(export_menu, 'More ...')
 
-        menu.AppendSeparator()
-        type_menu = wx.Menu()
-        mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_PYINT, "int in Python")
-        mitem.Check(isinstance(value[0], int))
-        type_menu.AppendSeparator()
-        mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_INT8, "int8")
-        mitem.Check(value.dtype == np.int8)
-        mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_UINT8, "uint8")
-        mitem.Check(value.dtype == np.uint8)
-        type_menu.AppendSeparator()
-        mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_INT16, "int16")
-        mitem.Check(value.dtype == np.int16)
-        mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_UINT16, "uint16")
-        mitem.Check(value.dtype == np.uint16)
-        type_menu.AppendSeparator()
-        mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_INT32, "int32")
-        mitem.Check(value.dtype == np.int32)
-        mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_UINT32, "uint32")
-        mitem.Check(value.dtype == np.uint32)
-        type_menu.AppendSeparator()
-        mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_INT64, "int64")
-        mitem.Check(value.dtype == np.int64)
-        mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_UINT64, "uint64")
-        mitem.Check(value.dtype == np.uint64)
-        type_menu.AppendSeparator()
-        mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_FLOAT16, "float16")
-        mitem.Check(value.dtype == np.float16)
-        mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_FLOAT32, "float32")
-        mitem.Check(value.dtype == np.float32)
-        mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_FLOAT64, "float64")
-        mitem.Check(value.dtype == np.float64)
-        if hasattr(np, 'float128'):
-            mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_FLOAT128, "float128")
-            mitem.Check(value.dtype == np.float128)
+            if is_numeric_dtype(value):
+                menu.AppendSeparator()
+                menu.Append(self.ID_VCD_PLOT, "Plot")
+                if is_integer_dtype(value):
+                    menu.Append(self.ID_VCD_PLOT_BITS, "Plot selected bits")
+                    menu.Append(self.ID_VCD_PLOT_BITS_VERT, "Plot selected bits vertically")
 
-        menu.AppendSubMenu(type_menu, 'As type')
+            menu.AppendSeparator()
+            type_menu = wx.Menu()
+            mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_PYINT, "int in Python")
+            mitem.Check(isinstance(value[0], int))
+            type_menu.AppendSeparator()
+            mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_INT8, "int8")
+            mitem.Check(value.dtype == np.int8)
+            mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_UINT8, "uint8")
+            mitem.Check(value.dtype == np.uint8)
+            type_menu.AppendSeparator()
+            mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_INT16, "int16")
+            mitem.Check(value.dtype == np.int16)
+            mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_UINT16, "uint16")
+            mitem.Check(value.dtype == np.uint16)
+            type_menu.AppendSeparator()
+            mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_INT32, "int32")
+            mitem.Check(value.dtype == np.int32)
+            mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_UINT32, "uint32")
+            mitem.Check(value.dtype == np.uint32)
+            type_menu.AppendSeparator()
+            mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_INT64, "int64")
+            mitem.Check(value.dtype == np.int64)
+            mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_UINT64, "uint64")
+            mitem.Check(value.dtype == np.uint64)
+            type_menu.AppendSeparator()
+            mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_FLOAT16, "float16")
+            mitem.Check(value.dtype == np.float16)
+            mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_FLOAT32, "float32")
+            mitem.Check(value.dtype == np.float32)
+            mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_FLOAT64, "float64")
+            mitem.Check(value.dtype == np.float64)
+            if hasattr(np, 'float128'):
+                mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_FLOAT128, "float128")
+                mitem.Check(value.dtype == np.float128)
+
+            menu.AppendSubMenu(type_menu, 'As type')
         return menu
 
     def OnProcessCommand(self, cmd, item):
         text = self.GetItemText(item)
         path = super().GetItemPath(item)
-        data = self.GetItemDataFromPath(path)
+        data = self.GetItemFullDataFromPath(path)
         value = self.GetItemData(item)
+        if isinstance(value, pd.Series):
+            data_name = value.name
+        else:
+            data_name = text
         if not path:
             return
 
         def _as_type(nptype):
             try:
-                series = pd.Series(data['raw'])
-                f = lambda x: int(x, 2)
-                value = series.map(f).to_numpy()
-                data[path[-1]] = value.astype(nptype)
+                value = data.raw.map(lambda x: int(x, 2))
+                data[data_name] = value.astype(nptype)
                 return
             except ValueError:
                 pass
             except OverflowError:
-                data[path[-1]] = value
+                data[data_name] = value
             try:
-                value = data['raw'].astype(nptype)
-                data[path[-1]] = value
+                value = data.raw.astype(nptype)
+                data[data_name] = value
                 return
             except ValueError:
                 pass
             try:
-                value = data['raw'].astype(np.float128)
-                data[path[-1]] = value.astype(nptype)
+                value = data.raw.astype(np.float64)
+                data[data_name] = value.astype(nptype)
                 return
             except ValueError:
                 pass
@@ -287,16 +285,19 @@ class VcdTree(TreeCtrlWithTimeStamp):
         if cmd in [self.ID_VCD_EXPORT, self.ID_VCD_EXPORT_WITH_TIMESTAMP,
                    self.ID_VCD_EXPORT_RAW, self.ID_VCD_EXPORT_RAW_WITH_TIMESTAMP]:
             name = get_variable_name(path)
-            df = pd.DataFrame()
-            if cmd in [self.ID_VCD_EXPORT_WITH_TIMESTAMP,
-                       self.ID_VCD_EXPORT_RAW_WITH_TIMESTAMP]:
-                df[self.timestamp_key] = data[self.timestamp_key]
-            if cmd in [self.ID_VCD_EXPORT_RAW,
-                       self.ID_VCD_EXPORT_RAW_WITH_TIMESTAMP]:
-                df[path[-1]] = data['raw']
+            if isinstance(data, pd.DataFrame):
+                df = pd.DataFrame()
+                if cmd in [self.ID_VCD_EXPORT_WITH_TIMESTAMP,
+                           self.ID_VCD_EXPORT_RAW_WITH_TIMESTAMP]:
+                    df[self.timestamp_key] = data[self.timestamp_key]
+                if cmd in [self.ID_VCD_EXPORT_RAW,
+                           self.ID_VCD_EXPORT_RAW_WITH_TIMESTAMP]:
+                    df[data_name] = data['raw']
+                else:
+                    df[data_name] = value
+                send_data_to_shell(name, df)
             else:
-                df[path[-1]] = data[path[-1]]
-            send_data_to_shell(name, df)
+                send_data_to_shell(name, value)
 
         elif cmd in [self.ID_VCD_EXPORT_BITS, self.ID_VCD_EXPORT_BITS_WITH_TIMESTAMP]:
             df = self.GetDataBits(value)
@@ -307,9 +308,9 @@ class VcdTree(TreeCtrlWithTimeStamp):
                 send_data_to_shell(name, df)
 
         elif cmd in [self.ID_VCD_PLOT, self.ID_VCD_PLOT_BITS, self.ID_VCD_PLOT_BITS_VERT]:
-            x = data[self.timestamp_key]*self.data.get('timescale', 1e-6)*1e6
+            x, y = self.GetItemPlotData(item)
             if cmd == self.ID_VCD_PLOT:
-                self.plot(x, value, '/'.join(path))
+                self.plot(x, y, '/'.join(path))
                 return
             # plot bits
             df = self.GetDataBits(value)
@@ -321,25 +322,18 @@ class VcdTree(TreeCtrlWithTimeStamp):
                     self.plot(x, df[bit], '/'.join(path+[bit]), step=True)
 
         elif cmd == self.ID_VCD_TO_PYINT:
-            series = pd.Series(data['raw'])
             try:
-                f = lambda x: int(x, 2)
-                value = series.map(f)
-                data[path[-1]] = value.to_array()
+                data[data_name] = data.raw.map(lambda x: int(x, 2))
                 return
             except ValueError:
                 pass
             try:
-                f = lambda x: int(x)
-                value = series.map(f)
-                data[path[-1]] = value.to_numpy()
+                data[data_name] = data.raw.map(lambda x: int(x))
                 return
             except ValueError:
                 pass
             try:
-                f = lambda x: int(float(x))
-                value = series.map(f)
-                data[path[-1]] = value.to_numpy()
+                data[data_name] = data.raw.map(lambda x: int(float(x)))
                 return
             except ValueError:
                 pass
