@@ -46,16 +46,13 @@ class CsvPanel(PanelNotebookBase):
         """load the csv file"""
         u = read_csv(filename)
         self.csv = u
-        if u:
-            self.tree.Load(u)
+        self.tree.Load(u)
+
         super().Load(filename, add_to_history=add_to_history)
 
     def OnDoSearch(self, evt):
         pattern = self.search.GetValue()
         self.tree.Fill(pattern)
-        item = self.tree.FindItemFromPath(self.tree.x_path)
-        if item:
-            self.tree.SetItemBold(item, True)
         self.search.SetFocus()
 
     @classmethod
