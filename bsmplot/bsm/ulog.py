@@ -332,14 +332,21 @@ class ULogPanel(PanelNotebookBase):
     def Load(self, filename, add_to_history=True):
         """load the ulog file"""
         u = load_ulog(filename)
+        self.ulg = u
         if u:
-            self.ulg = u
-            self.filename = filename
             self.tree.Load(u['data'])
             self.logList.Load(u['log'])
             self.infoList.Load(u['info'])
             self.paramList.Load(u['param'])
             self.chgParamList.Load(u['changed_param'])
+        else:
+            self.tree.Load(None)
+            self.logList.Load(None)
+            self.infoList.Load(None)
+            self.paramList.Load(None)
+            self.chgParamList.Load(None)
+            add_to_history = False
+
         super().Load(filename, add_to_history=add_to_history)
 
     def OnDoSearch(self, evt):

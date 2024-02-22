@@ -10,17 +10,20 @@ from bsmutility.utility import build_tree
 from bsmutility.fileviewbase import TreeCtrlNoTimeStamp, PanelNotebookBase, FileViewBase
 
 def read_csv(filename):
-    sep = ','
-    with open(filename, encoding='utf-8') as fp:
-        line = fp.readline()
-        s = Sniffer()
-        d = s.sniff(line)
-        sep = d.delimiter
-    csv = pd.read_csv(filename, sep=sep)
-    d = {}
-    for c in csv:
-        d[c] = csv[c]
-    return build_tree(build_tree(csv), '->')
+    try:
+        sep = ','
+        with open(filename, encoding='utf-8') as fp:
+            line = fp.readline()
+            s = Sniffer()
+            d = s.sniff(line)
+            sep = d.delimiter
+        csv = pd.read_csv(filename, sep=sep)
+        d = {}
+        for c in csv:
+            d[c] = csv[c]
+        return build_tree(build_tree(csv), '->')
+    except:
+        traceback.print_exc(file=sys.stdout)
 
 class CsvTree(TreeCtrlNoTimeStamp):
     pass
@@ -48,7 +51,7 @@ class CsvPanel(PanelNotebookBase):
         self.csv = u
         self.tree.Load(u)
 
-        super().Load(filename, add_to_history=add_to_history)
+        super().Load(filename, add_to_history=add_to_history and u is not None)
 
     def OnDoSearch(self, evt):
         pattern = self.search.GetValue()

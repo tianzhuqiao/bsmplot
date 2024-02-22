@@ -19,15 +19,18 @@ def process_record(d):
 
 def load_mat(filename):
     data = {'info': {}, 'data': {}}
-    raw = io.loadmat(filename)
-    data['info']['version'] = raw['__version__']
-    data['info']['header'] = raw['__header__']
-    data['info']['globals'] = raw['__globals__']
+    try:
+        raw = io.loadmat(filename)
+        data['info']['version'] = raw.get('__version__', '')
+        data['info']['header'] = raw.get('__header__', '')
+        data['info']['globals'] = raw.get('__globals__', '')
 
-    # data
-    keys = [k for k in raw if not k.startswith('__')]
-    for k in keys:
-        data['data'][k] = process_record(raw[k])
+        # data
+        keys = [k for k in raw if not k.startswith('__')]
+        for k in keys:
+            data['data'][k] = process_record(raw[k])
+    except:
+        traceback.print_exc(file=sys.stdout)
 
     return data
 
@@ -93,6 +96,11 @@ class MatPanel(PanelNotebookBase):
         if u:
             self.tree.Load(u['data'])
             self.infoList.Load(u['info'])
+        else:
+            self.tree.Load(None)
+            self.infoList.Load(None)
+            add_to_history = False
+
         super().Load(filename, add_to_history=add_to_history)
 
     def OnDoSearch(self, evt):

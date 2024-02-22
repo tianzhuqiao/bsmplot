@@ -459,6 +459,13 @@ class VcdPanel(PanelNotebookBase):
             self.tree.Load(u['data'])
             self.infoList.Load(u['info'])
             self.commentList.Load(u['comment'])
+        else:
+            # clear data
+            self.tree.Load(None)
+            self.infoList.Load(None)
+            self.commentList.Load(None)
+            add_to_history = False
+
         super().Load(filename, add_to_history=add_to_history)
 
     def OnDoSearch(self, evt):
