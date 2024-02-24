@@ -11,4 +11,4 @@ To install
 $ pip install bsmplot
 ```
 
-<img src="./docs/bsmplot.png" width="865" height="575"></img>
+<img src="https://github.com/tianzhuqiao/bsmplot/blob/main/docs/bsmplot.png?raw=true" width="865" height="575"></img>
