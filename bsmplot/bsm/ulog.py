@@ -8,8 +8,7 @@ import numpy as np
 import pandas as pd
 from bsmutility.pymgr_helpers import Gcm
 from bsmutility.fileviewbase import ListCtrlBase, TreeCtrlWithTimeStamp, PanelNotebookBase, FileViewBase
-from bsmutility.bsmxpm import more_svg
-from bsmutility.utility import svg_to_bitmap, build_tree, get_tree_item_name
+from bsmutility.utility import build_tree, get_tree_item_name
 from propgrid import PropText, PropChoice, PropSeparator
 from .quaternion import Quaternion
 
@@ -114,11 +113,11 @@ class ULogTree(TreeCtrlWithTimeStamp):
                 data[f'{name}pitch'] = df['pitch']
                 data[f'{name}roll'] = df['roll']
                 self.RefreshChildren(item)
-                path = self.getitempath(item)
-                new_item = self.finditemfrompath(path+[f'{name}yaw'])
-                if new_item and new_item.isok():
-                    self.ensurevisible(new_item)
-                    self.setfocuseditem(new_item)
+                path = self.GetItemPath(item)
+                new_item = self.FindItemFromPath(path+[f'{name}yaw'])
+                if new_item and new_item.IsOk():
+                    self.EnsureVisible(new_item)
+                    self.SetFocusedItem(new_item)
             else:
                 self.UpdateData({settings.get('name', 'ypr'): df})
 
@@ -283,7 +282,6 @@ class ChgParamListCtrl(ListCtrlBase):
 
 class ULogPanel(PanelNotebookBase):
     Gcc = Gcm()
-    ID_MORE = wx.NewIdRef()
 
     def __init__(self, parent, filename=None):
         self.ulg = None
@@ -292,12 +290,6 @@ class ULogPanel(PanelNotebookBase):
         self.Bind(wx.EVT_TEXT, self.OnDoSearch, self.search)
         self.Bind(wx.EVT_TEXT, self.OnDoSearchLog, self.search_log)
         self.Bind(wx.EVT_TEXT, self.OnDoSearchParam, self.search_param)
-
-    def init_toolbar(self):
-        super().init_toolbar()
-        self.tb.AddStretchSpacer()
-        self.tb.AddTool(self.ID_MORE, "More", svg_to_bitmap(more_svg, win=self),
-                        wx.NullBitmap, wx.ITEM_NORMAL, "More")
 
     def init_pages(self):
         # data page
@@ -317,17 +309,6 @@ class ULogPanel(PanelNotebookBase):
         self.notebook.AddPage(self.chgParamList, 'Changed Param')
 
         self.ulg = None
-
-    def OnProcessCommand(self, event):
-        eid = event.GetId()
-        selections = []
-        for item in self.tree.GetSelections():
-            selections.append(get_tree_item_name(self.tree.GetItemPath(item)))
-
-        if eid == self.ID_MORE:
-            pass
-        else:
-            super().OnProcessCommand(event)
 
     def Load(self, filename, add_to_history=True):
         """load the ulog file"""
