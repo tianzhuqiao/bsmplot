@@ -112,10 +112,11 @@ class MainFrame(FramePlus):
     ID_CONTACT = wx.NewIdRef()
 
     def __init__(self, parent, **kwargs):
+        sz = wx.GetDisplaySize()
         FramePlus.__init__(self,
                            parent,
                            title=PROJECT_NAME,
-                           size=wx.Size(800, 600),
+                           size=sz*0.9,
                            style=wx.DEFAULT_FRAME_STYLE | wx.TAB_TRAVERSAL)
         self.InitMenu()
 
