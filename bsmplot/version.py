@@ -2,7 +2,7 @@ PROJECT_NAME     = 'bsmplot'
 
 VER_MAJOR        = 0
 VER_MINOR        = 1
-VER_RELEASE      = 1
+VER_RELEASE      = 2
 
 VER_FLAGS        = ""
 
