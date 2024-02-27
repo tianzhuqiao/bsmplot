@@ -19,7 +19,7 @@ from bsmutility.utility import svg_to_bitmap
 from bsmutility.pymgr_helpers import Gcm
 from bsmutility.utility import build_tree
 from bsmutility.fileviewbase import TreeCtrlNoTimeStamp, PanelNotebookBase, FileViewBase
-
+from bsmutility.signalselsettingdlg import PropSettingDlg
 
 def flatten(dictionary, parent_key='', separator='.'):
     items = []
@@ -228,71 +228,6 @@ class ZMQTree(TreeCtrlNoTimeStamp):
             line.autorelim = True
         self._graph_retrieved = True
 
-class ZMQSettingDlg(wx.Dialog):
-    def __init__(self, parent, settings=None, title='Settings ...',
-                 size=wx.DefaultSize, pos=wx.DefaultPosition,
-                 style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER):
-        wx.Dialog.__init__(self)
-        self.SetExtraStyle(wx.DIALOG_EX_CONTEXTHELP)
-        self.Create(parent, title=title, pos=pos, size=size, style=style)
-
-        self.propgrid = pg.PropGrid(self)
-        g = self.propgrid
-        g.Draggable(False)
-
-        if settings is None:
-            settings = {}
-        g.Insert(pg.PropChoice(['tcp://', 'ipc://', 'pgm://', 'udp://', 'inproc://'])
-                   .Label('Protocol').Name('protocol')
-                   .Value(settings.get("protocol", 'tcp://')))
-        g.Insert(pg.PropText().Label('Address').Name('address')
-                   .Value(settings.get("address", 'localhost')))
-        g.Insert(pg.PropInt().Label('Port').Name('port').Value(settings.get('port', 2967)))
-
-        fmt = ['json']#, 'pyobj', 'bson', 'cbor', 'cdr', 'msgpack', 'protobuf', 'ros1']
-        g.Insert(pg.PropChoice(fmt).Label('Message Format').Name('format')
-                   .Value(settings.get('format', 'json')))
-        g.Insert(pg.PropInt().Label('Buffer Size').Name('maxlen')
-                   .Value(settings.get('maxlen', 1024)))
-
-        sizer = wx.BoxSizer(wx.VERTICAL)
-
-        sizer.Add(g, 1, wx.EXPAND|wx.ALL, 1)
-
-        # ok/cancel button
-        btnsizer = wx.StdDialogButtonSizer()
-        btnsizer.AddStretchSpacer(1)
-
-        btn = wx.Button(self, wx.ID_OK)
-        btn.SetDefault()
-        btnsizer.AddButton(btn)
-
-        btn = wx.Button(self, wx.ID_CANCEL)
-        btnsizer.AddButton(btn)
-        btnsizer.Realize()
-
-        sizer.Add(btnsizer, 0, wx.ALL|wx.EXPAND, 5)
-
-        self.SetSizer(sizer)
-
-        self.Bind(wx.EVT_CONTEXT_MENU, self.OnContextMenu)
-
-    def OnContextMenu(self, event):
-        # it is necessary, otherwise when right click on the dialog, the context
-        # menu of the MatplotPanel will show; it may be due to some 'bug' in
-        # CaptureMouse/ReleaseMouse (canvas is a panel that capture mouse)
-        # and we also need to release the mouse before show the MatplotPanel
-        # context menu (wchich will eventually show this dialog)
-        pass
-
-    def GetSettings(self):
-        settings = {}
-
-        for name in ['protocol', 'address', 'port', 'format', 'maxlen']:
-            p = self.propgrid.Get(name)
-            if p:
-                settings[name] = p.GetValue()
-        return settings
 
 class ZMQPanel(PanelNotebookBase):
     Gcc = Gcm()
@@ -488,10 +423,15 @@ class ZMQPanel(PanelNotebookBase):
 
     @classmethod
     def GetSettings(cls, parent, settings=None):
-        #message = 'IP address for the ZMQ server, e.g., "tcp://172.16.150.202:2967"'
-        if settings is None:
-            settings = cls.LoadSettings()
-        dlg = ZMQSettingDlg(parent, settings)
+        fmt = ['json']#, 'pyobj', 'bson', 'cbor', 'cdr', 'msgpack', 'protobuf', 'ros1']
+        props = [pg.PropChoice(['tcp://', 'ipc://', 'pgm://', 'udp://', 'inproc://'])
+                   .Label('Protocol').Name('protocol').Value('tcp://'),
+                 pg.PropText().Label('Address').Name('address').Value('localhost'),
+                 pg.PropInt().Label('Port').Name('port').Value(2967),
+                 pg.PropChoice(fmt).Label('Message Format').Name('format').Value('json'),
+                 pg.PropInt().Label('Buffer Size').Name('maxlen').Value(1024)]
+
+        dlg = PropSettingDlg(parent, props, config='zmqs.settings')
         if dlg.ShowModal() == wx.ID_OK:
             setting = dlg.GetSettings()
             return setting
