@@ -57,12 +57,6 @@ class ULogTree(TreeCtrlWithTimeStamp):
             x = x/1e6
         return x, y
 
-    def GetItemDragData(self, item):
-        data = super().GetItemDragData(item)
-        if self.timestamp_key in data:
-            data[self.timestamp_key] /= 1e6
-        return data
-
     def GetPlotXLabel(self):
         return "t(s)"
 
