@@ -11,6 +11,7 @@ matplotlib.use('module://bsmplot.bsm.bsmbackend')
 import matplotlib.pyplot as plt
 from mplpanel import MPLPanel, Gcf
 from bsmutility.bsminterface import Interface
+from mplpanel.graph_subplot import refresh_legend
 
 class DataDropTarget(wx.DropTarget):
     def __init__(self, canvas):
@@ -85,7 +86,7 @@ class DataDropTarget(wx.DropTarget):
                             ax.plot(line[line.columns[0]], line[line.columns[i]],
                                     label=label,
                                     linestyle=ls, marker=ms)
-                    ax.legend()
+                    refresh_legend(ax)
                     break
         except:
             traceback.print_exc(file=sys.stdout)
@@ -108,8 +109,10 @@ class MatplotPanel(MPLPanel):
         self.canvas.SetDropTarget(dt)
 
     def DataUpdated(self):
+        updated_ax = []
         for ax in self.figure.get_axes():
             autorelim = False
+            updated = False
             for l in ax.lines:
                 if not hasattr(l, 'trace_signal'):
                     continue
@@ -121,12 +124,16 @@ class MatplotPanel(MPLPanel):
                 if x is None or y is None:
                     continue
                 l.set_data(x, y)
+                updated = True
                 if hasattr(l, 'autorelim') and l.autorelim:
                     autorelim = True
+            if updated:
+                updated_ax.append(ax)
             if autorelim:
                 #Need both of these in order to rescale
                 ax.relim()
                 ax.autoscale_view()
+        dp.send('graph.axes_updated', figure=self.figure, axes=updated_ax)
 
     def simLoad(self, num):
         for ax in self.figure.get_axes():
