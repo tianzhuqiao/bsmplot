@@ -69,22 +69,24 @@ class ZMQMessage:
         self.ipaddr = ipaddr
         self.socket.connect(ipaddr)
         self.socket.subscribe("")
+        for i in range(10):
+            # wait 200,s and try to get some data, so the client can populate
+            # the data tree
+            if self.receive(sleep_ms=200):
+                break
 
-    def receive(self):
+    def receive(self, sleep_ms=100):
         try:
             s = self.socket.recv_string(zmq.NOBLOCK)
             self.qresp.put({'cmd': 'data', 'value': s})
+            return True
         except zmq.ZMQError:
-            wx.Sleep(0.1)
+            wx.MilliSleep(sleep_ms)
         except Queue.Full:
-            wx.Sleep(0.1)
+            wx.MilliSleep(sleep_ms)
+        return False
 
     def process(self):
-        # wait 1s and try to get some data, so the client can populate the data tree
-        wx.Sleep(1)
-        for i in range(5):
-            self.receive()
-
         is_exit = False
         while not is_exit:
             if self.socket.closed or self.running:
@@ -143,6 +145,8 @@ class ZMQTree(TreeCtrlNoTimeStamp):
         self.last_updated_time = datetime.datetime.now()
         self._graph_retrieved = True
 
+        self._converted_item = []
+
     def RetrieveData(self, num, path):
         self._graph_retrieved = True
         if num != self.num:
@@ -199,26 +203,27 @@ class ZMQTree(TreeCtrlNoTimeStamp):
         return key
 
     def GetItemDataFromPath(self, path):
+        data = super().GetItemDataFromPath(path)
+        if isinstance(data, MutableMapping):
+            # folder to list children (get_children), just return
+            return data
+        # check if in
+        equation = None
+        for c in self._converted_item:
+            if c[0] == path:
+                equation = c[2]
+                path = c[1]
         key = self.GetItemKeyFromPath(path)
         data = [d[key] if key in d else np.nan for d in self.df]
-        return np.array(data)
-
-    def GetItemPlotData(self, item):
-        y = self.GetItemData(item)
-
-        x = None
-        if self.x_path is not None and self.GetItemPath(item) != self.x_path:
-            x = self.GetItemDataFromPath(self.x_path)
-            if len(x) != len(y):
-                name = self.GetItemText(item)
-                print(f"'{name}' and '{self.x_path[-1]}' have different length, ignore x-axis data!")
-                x = None
-        if x is None:
-            x = np.arange(0, len(y))
-        return x, y
-
-    def GetItemDragData(self, item):
-        pass
+        data = np.array(data)
+        if equation:
+            try:
+                equation = equation.replace('#', 'data')
+                data = eval(equation, globals(), locals())
+            except:
+                traceback.print_exc(file=sys.stdout)
+                return None
+        return data
 
     def PlotItem(self, item, confirm=True):
         line = super().PlotItem(item, confirm=confirm)
@@ -228,6 +233,16 @@ class ZMQTree(TreeCtrlNoTimeStamp):
             line.autorelim = True
         self._graph_retrieved = True
 
+    def ConvertItem(self, item, equation=None, name=None, **kwargs):
+        path = self.GetItemPath(item)
+        # after the following call, item may not be valid, as it will refresh
+        # the tree
+        new_item, settings = super().ConvertItem(item, equation, name, **kwargs)
+        if equation is None:
+            equation = settings.get('equation', None)
+        if new_item is not None and equation is not None:
+            self._converted_item.append([self.GetItemPath(new_item),
+                                         path, equation])
 
 class ZMQPanel(PanelNotebookBase):
     Gcc = Gcm()
