@@ -82,7 +82,7 @@ class ULogTree(TreeCtrlWithTimeStamp):
                         valid_paths = False
                         break
                     # remove '{start}.'
-                    paths[i] = p[len(start)+1:]
+                    paths[i] = p[len(start):].lstrip('.')
 
             if valid_paths:
                 values = {'w': paths[0], 'x': paths[1],
@@ -203,8 +203,11 @@ class InfoListCtrl(ListCtrlBase):
         return -1
 
     def Load(self, data):
-        data = [[k, v] for k, v in data.items()]
-        data = sorted(data, key=lambda x: x[0])
+        if data is not None:
+            data = [[k, v] for k, v in data.items()]
+            data = sorted(data, key=lambda x: x[0])
+        else:
+            data = []
         super().Load(data)
 
     def OnGetItemText(self, item, column):
