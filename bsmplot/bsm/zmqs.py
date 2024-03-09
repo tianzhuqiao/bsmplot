@@ -218,8 +218,14 @@ class ZMQTree(TreeCtrlNoTimeStamp):
         data = np.array(data)
         if equation:
             try:
+                resp = dp.send('shell.get_locals')
+                if resp:
+                    local = resp[0][1]
+                    local.update(locals())
+                else:
+                    local = locals()
                 equation = equation.replace('#', 'data')
-                data = eval(equation, globals(), locals())
+                data = eval(equation, globals(), local)
             except:
                 traceback.print_exc(file=sys.stdout)
                 return None
