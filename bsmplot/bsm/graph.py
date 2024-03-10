@@ -1,17 +1,11 @@
-import sys
-import traceback
-import json
 import wx
 import wx.py.dispatcher as dp
 import numpy as np
-import pandas
-from pandas.api.types import is_numeric_dtype
 import matplotlib
 matplotlib.use('module://bsmplot.bsm.bsmbackend')
 import matplotlib.pyplot as plt
 from mplpanel import MPLPanel, Gcf
 from bsmutility.bsminterface import Interface
-from mplpanel.graph_subplot import refresh_legend
 
 class DataDropTarget(wx.DropTarget):
     def __init__(self, canvas):
@@ -39,58 +33,15 @@ class DataDropTarget(wx.DropTarget):
             ratio = self.canvas.device_pixel_ratio
         else:
             ratio = 1
-        #self.frame.OnDrop(x, y, self.obj.GetText())
-        data = self.obj.GetText()
-        if isinstance(data, dict):
-            xlabel = data.get('xlabel', '')
-            ylabel = data.get('ylabel', '')
-            data = data['lines']
-        try:
-            data = json.loads(data)
-            xlabel, ylabel = 't(s)', ''
-            if isinstance(data, dict):
-                xlabel = data.get('xlabel', '')
-                ylabel = data.get('ylabel', '')
-                data = data['lines']
-            sz = self.canvas.GetSize()
-            y = sz[1]-y
-            fig = self.canvas.figure
-            if len(fig.get_axes()) == 0:
-                fig.gca()
-                fig.gca().grid(True)
-                if xlabel:
-                    fig.gca().set_xlabel(xlabel)
-                if ylabel:
-                    fig.gca().set_ylabel(ylabel)
-            for i, ax in enumerate(fig.get_axes()):
-                if ax.bbox.contains(x*ratio, y*ratio):
-                    ls, ms = None, None
-                    if ax.lines:
-                        # match the line/marker style of the existing line
-                        line = ax.lines[0]
-                        ls, ms = line.get_linestyle(), line.get_marker()
-                    for l in data:
-                        title = l[0]
-                        line = pandas.DataFrame.from_dict(json.loads(l[1]))
-                        for i in range(1, len(line.columns)):
-                            label = line.columns[i]
-                            if title:
-                                label="/".join([title, label])
-                            # the label starts with '_' will be ignored, so remove leading '_'
-                            label = label.lstrip('_')
-                            if not is_numeric_dtype(line[line.columns[0]]) or \
-                               not is_numeric_dtype(line[line.columns[1]]):
-                                # ignore non-numeric data
-                                continue
-
-                            ax.plot(line[line.columns[0]], line[line.columns[i]],
-                                    label=label,
-                                    linestyle=ls, marker=ms)
-                    refresh_legend(ax)
-                    break
-        except:
-            traceback.print_exc(file=sys.stdout)
-
+        sz = self.canvas.GetSize()
+        y = sz[1]-y
+        fig = self.canvas.figure
+        for i, ax in enumerate(fig.get_axes()):
+            if ax.bbox.contains(x*ratio, y*ratio):
+                # set the active axes here, and the caller will plot on it
+                fig.sca(ax)
+                dp.send('graph.drop', axes=ax, allowed=True)
+                break
         return d
 
     def OnDragOver(self, x, y, d):
