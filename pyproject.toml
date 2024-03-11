@@ -15,9 +15,9 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-          'wxpython>=4.2.1', 'matplotlib>=3.8.1', 'numpy', 'scipy', 'click', 'pandas',
-          'pyulog', 'pyvcd', 'propgrid', 'mplpanel', 'aui2', 'zmq', 'bsmutility',
-          'ply', 'cchardet'
+          'wxpython>=4.2.1', 'matplotlib>=3.8.1', 'numpy', 'scipy', 'click>=8.1', 'pandas',
+          'pyulog', 'pyvcd', 'propgrid>=0.1.1', 'mplpanel>=0.1.2', 'aui2>=0.1.2', 'zmq',
+          'bsmutility>=0.1.2','ply', 'cchardet'
       ]
 dynamic = ["version"]
 
