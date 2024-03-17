@@ -209,10 +209,12 @@ class ZMQTree(TreeCtrlNoTimeStamp):
             return data
         # check if in
         equation = None
+        idx = [1, 0]
         for c in self._converted_item:
             if c[0] == path:
-                equation = c[2]
-                path = c[1]
+                equation = c[3]
+                path = c[2]
+                idx = c[1]
         key = self.GetItemKeyFromPath(path)
         data = [d[key] if key in d else np.nan for d in self.df]
         data = np.array(data)
@@ -226,6 +228,8 @@ class ZMQTree(TreeCtrlNoTimeStamp):
                     local = locals()
                 equation = equation.replace('#', 'data')
                 data = eval(equation, globals(), local)
+                if idx[0] > 1:
+                    data = data[idx[1]]
             except:
                 traceback.print_exc(file=sys.stdout)
                 return None
@@ -247,8 +251,10 @@ class ZMQTree(TreeCtrlNoTimeStamp):
         if equation is None:
             equation = settings.get('equation', None)
         if new_item is not None and equation is not None:
-            self._converted_item.append([self.GetItemPath(new_item),
-                                         path, equation])
+            for idx in range(0, len(new_item)):
+                self._converted_item.append([self.GetItemPath(new_item[idx]),
+                                             (len(new_item), idx),
+                                             path, equation])
 
 class ZMQPanel(PanelNotebookBase):
     Gcc = Gcm()
@@ -307,8 +313,8 @@ class ZMQPanel(PanelNotebookBase):
             traceback.print_exc(file=sys.stdout)
 
     def Destroy(self):
-        self.timer.Stop()
         self.stop()
+        self.timer.Stop()
         super().Destroy()
 
     def process_response(self):
@@ -479,9 +485,9 @@ class ZMQPanel(PanelNotebookBase):
     def OnUpdateCmdUI(self, event):
         eid = event.GetId()
         if eid == self.ID_RUN:
-            event.Enable(self.zmq and self.zmq.is_alive() and self.zmq_status != 'start')
+            event.Enable(self.zmq is not None and self.zmq.is_alive() and self.zmq_status != 'start')
         elif eid == self.ID_PAUSE:
-            event.Enable(self.zmq and self.zmq.is_alive() and self.zmq_status == 'start')
+            event.Enable(self.zmq is not None and self.zmq.is_alive() and self.zmq_status == 'start')
         else:
             super().OnUpdateCmdUI(event)
 
