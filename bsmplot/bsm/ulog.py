@@ -36,20 +36,6 @@ def load_ulog(filename):
 
 class ULogTree(TreeCtrlWithTimeStamp):
 
-    ID_QUATERNION_RPY = wx.NewIdRef()
-    ID_RAD_TO_DEG = wx.NewIdRef()
-    ID_DEG_TO_RAD = wx.NewIdRef()
-
-    def GetItemMenu(self, item):
-        menu = super().GetItemMenu(item)
-        if menu is None:
-            return None
-        if not self.ItemHasChildren(item):
-            menu.Append(self.ID_QUATERNION_RPY, 'Quaternion to Roll/Pitch/Yaw')
-            menu.Append(self.ID_RAD_TO_DEG, 'Radian to degree')
-            menu.Append(self.ID_DEG_TO_RAD, 'Degree to radian')
-        return menu
-
     def GetItemPlotData(self, item):
         x, y = super().GetItemPlotData(item)
         if x is not None:
@@ -59,92 +45,6 @@ class ULogTree(TreeCtrlWithTimeStamp):
 
     def GetPlotXLabel(self):
         return "t(s)"
-
-    def Quaternion2YPR(self, paths=None, item=None):
-        start = ''
-        config = 'ulog.quaternion'
-        name = '~'
-        if item is not None and item.IsOk() and self.ItemHasChildren(item):
-            path = self.GetItemPath(item)
-            start = get_tree_item_name(path)
-            config += ".".join(path)
-
-        additional = [PropSeparator().Label('Output'),
-                      PropChoice(['Degree', 'Radian']).Label('Format')
-                                 .Name('format').Value('Degree'),
-                      PropText().Label("Name").Name('name').Value(name)]
-        values = None
-        if paths is not None and len(paths) == 4:
-            valid_paths = True
-            if start:
-                for i, p in enumerate(paths):
-                    if not p.startswith(start):
-                        valid_paths = False
-                        break
-                    # remove '{start}.'
-                    paths[i] = p[len(start):].lstrip('.')
-
-            if valid_paths:
-                values = {'w': paths[0], 'x': paths[1],
-                          'y': paths[2], 'z': paths[3]}
-        df_in, settings = self.SelectSignal(items=['w', 'x', 'y', 'z'],
-                                            values=values,
-                                            config=config,
-                                            additional = additional,
-                                            start=start)
-        if df_in is not None:
-            q = Quaternion(df_in['w'], df_in['x'], df_in['y'], df_in['z']).to_angle()
-            radian = settings['format'] == 'Radian'
-            df = pd.DataFrame()
-            df['yaw'] = q[0] if not radian else np.deg2rad(q[0])
-            df['pitch'] = q[1] if not radian else np.deg2rad(q[1])
-            df['roll'] = q[2] if not radian else np.deg2rad(q[2])
-            if start:
-                # add columns to same DataFrame
-                data = self.GetItemData(item)
-                name = settings.get('name', '')
-                data[f'{name}yaw'] = df['yaw']
-                data[f'{name}pitch'] = df['pitch']
-                data[f'{name}roll'] = df['roll']
-                self.RefreshChildren(item)
-                path = self.GetItemPath(item)
-                new_item = self.FindItemFromPath(path+[f'{name}yaw'])
-                if new_item and new_item.IsOk():
-                    self.EnsureVisible(new_item)
-                    self.SetFocusedItem(new_item)
-            else:
-                self.UpdateData({settings.get('name', 'ypr'): df})
-
-    def ConvertRad2Deg(self, item):
-        if item is None or not item.IsOk():
-            return None
-        # convert an item, insert it to the same DataFrame
-        name = self.GetItemText(item)
-        return self.ConvertItem(item, equation='np.rad2deg(#)',name=f'{name}_deg')
-
-    def ConvertDeg2Rad(self, item):
-        if item is None or not item.IsOk():
-            return None
-        # convert an item, insert it to the same DataFrame
-        name = self.GetItemText(item)
-        return self.ConvertItem(item, equation='np.rad2deg(#)', name=f'{name}_rad')
-
-    def OnProcessCommand(self, cmd, item):
-        selections = []
-        for item in self.GetSelections():
-            selections.append(get_tree_item_name(self.GetItemPath(item)))
-
-        if cmd == self.ID_QUATERNION_RPY:
-            parent = self.GetItemParent(item)
-            self.Quaternion2YPR(paths=selections, item=parent)
-
-        elif cmd == self.ID_RAD_TO_DEG:
-            self.ConvertRad2Deg(item=item)
-
-        elif cmd == self.ID_DEG_TO_RAD:
-            self.ConvertDeg2Rad(item=item)
-        else:
-            super().OnProcessCommand(cmd, item)
 
 class MessageListCtrl(ListCtrlBase):
 
