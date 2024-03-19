@@ -14,10 +14,10 @@ import pandas as pd
 import zmq
 import propgrid as pg
 from bsmutility.bsmxpm import open_svg, run_svg, run_grey_svg, pause_svg, pause_grey_svg, \
-                              stop_svg, stop_grey_svg
+                              stop_svg, stop_grey_svg, more_svg
 from bsmutility.utility import svg_to_bitmap
 from bsmutility.pymgr_helpers import Gcm
-from bsmutility.utility import build_tree
+from bsmutility.utility import build_tree, get_tree_item_name
 from bsmutility.fileviewbase import TreeCtrlNoTimeStamp, PanelNotebookBase, FileViewBase
 from bsmutility.signalselsettingdlg import PropSettingDlg
 
@@ -145,8 +145,6 @@ class ZMQTree(TreeCtrlNoTimeStamp):
         self.last_updated_time = datetime.datetime.now()
         self._graph_retrieved = True
 
-        self._converted_item = []
-
     def RetrieveData(self, num, path):
         self._graph_retrieved = True
         if num != self.num:
@@ -208,32 +206,21 @@ class ZMQTree(TreeCtrlNoTimeStamp):
             # folder to list children (get_children), just return
             return data
         # check if in
-        equation = None
         idx = [1, 0]
-        for c in self._converted_item:
-            if c[0] == path:
-                equation = c[3]
-                path = c[2]
-                idx = c[1]
+        name = get_tree_item_name(path)
+        if name in self._converted_item:
+            c = self._converted_item[name]
+            idx = c[0]
+            settings = c[1]
+            data = self.doConvertFromSetting(settings)
+            if idx[0] > 1 and data is not None:
+                data = data[idx[1]]
+            return data
+
         key = self.GetItemKeyFromPath(path)
         data = [d[key] if key in d else np.nan for d in self.df]
         data = np.array(data)
-        if equation:
-            try:
-                resp = dp.send('shell.get_locals')
-                if resp:
-                    local = resp[0][1]
-                    local.update(locals())
-                else:
-                    local = locals()
-                equation = equation.replace('#', 'data')
-                data = eval(equation, globals(), local)
-                if idx[0] > 1:
-                    data = data[idx[1]]
-            except:
-                traceback.print_exc(file=sys.stdout)
-                return None
-        return data
+        return None if np.isnan(data).all() else data
 
     def PlotItem(self, item, confirm=True):
         line = super().PlotItem(item, confirm=confirm)
@@ -243,18 +230,6 @@ class ZMQTree(TreeCtrlNoTimeStamp):
             line.autorelim = True
         self._graph_retrieved = True
 
-    def ConvertItem(self, item, equation=None, name=None, **kwargs):
-        path = self.GetItemPath(item)
-        # after the following call, item may not be valid, as it will refresh
-        # the tree
-        new_item, settings = super().ConvertItem(item, equation, name, **kwargs)
-        if equation is None:
-            equation = settings.get('equation', None)
-        if new_item is not None and equation is not None:
-            for idx in range(0, len(new_item)):
-                self._converted_item.append([self.GetItemPath(new_item[idx]),
-                                             (len(new_item), idx),
-                                             path, equation])
 
 class ZMQPanel(PanelNotebookBase):
     Gcc = Gcm()
@@ -300,6 +275,10 @@ class ZMQPanel(PanelNotebookBase):
         #self.tb.AddTool(self.ID_STOP, "Stop", svg_to_bitmap(stop_svg, win=self),
         #                svg_to_bitmap(stop_grey_svg, win=self), wx.ITEM_NORMAL,
         #                "Stop the ZMQ subscriber")
+        self.tb.AddStretchSpacer()
+        self.tb.AddTool(self.ID_MORE, "More", svg_to_bitmap(more_svg, win=self),
+                        wx.NullBitmap, wx.ITEM_NORMAL, "More")
+
     def init_pages(self):
         # data page
         panel, self.search, self.tree = self.CreatePageWithSearch(ZMQTree)
