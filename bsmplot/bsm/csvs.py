@@ -49,7 +49,7 @@ class CsvPanel(PanelNotebookBase):
         """load the csv file"""
         u = read_csv(filename)
         self.csv = u
-        self.tree.Load(u)
+        self.tree.Load(u, filename)
 
         super().Load(filename, add_to_history=add_to_history and u is not None)
 

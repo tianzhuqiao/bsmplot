@@ -94,7 +94,7 @@ class MatPanel(PanelNotebookBase):
         u = load_mat(filename)
         self.mat = u
         if u:
-            self.tree.Load(u['data'])
+            self.tree.Load(u['data'], filename)
             self.infoList.Load(u['info'])
         else:
             self.tree.Load(None)

@@ -159,13 +159,13 @@ class ZMQTree(TreeCtrlNoTimeStamp):
             x = np.arange(0, len(y))
         return x, y
 
-    def Load(self, data):
+    def Load(self, data, filename=None):
         # flatten the tree, so make it easy to combine multiple frames together
         # e.g., frame 1: {'a': [1, 2, 3]}, frame 2 {'a': [1, 2, 3]}, after
         # combination, it shall become {'a[0]': [1, 1], 'a[1]': [2, 2], 'a[3]': [3, 3]}
         data_f = flatten(data)
-        super().Load(build_tree(data_f))
         self.df.append(data_f)
+        super().Load(build_tree(data_f), filename)
 
     def SetQueueMaxLen(self, maxlen):
         if maxlen != self.df.maxlen:
@@ -174,9 +174,9 @@ class ZMQTree(TreeCtrlNoTimeStamp):
                 df.append(d)
             self.df = df
 
-    def Update(self, data):
+    def Update(self, data, filename=None):
         if not self.data:
-            self.Load(data)
+            self.Load(data, filename)
         else:
             data_f = flatten(data)
             self.df.append(data_f)
@@ -315,7 +315,7 @@ class ZMQPanel(PanelNotebookBase):
         value = resp.get('value', False)
         if command == 'data':
             # fmt = self.settings.get('format', 'json')
-            self.tree.Update(json.loads(value))
+            self.tree.Update(json.loads(value), self.filename)
         elif command in ['start', 'pause', 'stop']:
             if value:
                 self.zmq_status = command

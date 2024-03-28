@@ -456,7 +456,7 @@ class VcdPanel(PanelNotebookBase):
         self.vcd = u
         self.filename = filename
         if u:
-            self.tree.Load(u['data'])
+            self.tree.Load(u['data'], filename)
             self.infoList.Load(u['info'])
             self.commentList.Load(u['comment'])
         else:

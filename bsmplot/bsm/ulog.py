@@ -8,9 +8,7 @@ import numpy as np
 import pandas as pd
 from bsmutility.pymgr_helpers import Gcm
 from bsmutility.fileviewbase import ListCtrlBase, TreeCtrlWithTimeStamp, PanelNotebookBase, FileViewBase
-from bsmutility.utility import build_tree, get_tree_item_name
-from propgrid import PropText, PropChoice, PropSeparator
-from .quaternion import Quaternion
+from bsmutility.utility import build_tree
 
 def load_ulog(filename):
     try:
@@ -212,7 +210,7 @@ class ULogPanel(PanelNotebookBase):
         u = load_ulog(filename)
         self.ulg = u
         if u:
-            self.tree.Load(u['data'])
+            self.tree.Load(u['data'], filename)
             self.logList.Load(u['log'])
             self.infoList.Load(u['info'])
             self.paramList.Load(u['param'])
