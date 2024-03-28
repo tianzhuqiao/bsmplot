@@ -11,6 +11,9 @@ def process_record(d):
     if d.dtype.names is None:
         if len(d) == 1 and d.dtype.name == 'object':
             return process_record(d[0])
+        if hasattr(d, 'shape'):
+            if len(d.shape) <= 1 or sorted(d.shape)[-2] == 1:
+                d = d.flatten()
         return d
     data = {}
     for name in d.dtype.names:
