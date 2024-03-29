@@ -119,10 +119,10 @@ class VcdTree(TreeCtrlWithTimeStamp):
     ID_VCD_TO_FLOAT64 = wx.NewIdRef()
     ID_VCD_TO_FLOAT128 = wx.NewIdRef()
 
-    def Load(self, data):
+    def Load(self, data, filename=None):
         """load the vcd file"""
         vcd = _dict(data)
-        super().Load(vcd)
+        super().Load(vcd, filename)
 
     def _is_folder(self, d):
         return isinstance(d, MutableMapping)

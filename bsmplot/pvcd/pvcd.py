@@ -6,8 +6,7 @@ import numpy as np
 import pandas as pd
 from ply import lex, yacc
 import click
-import cchardet as chardet
-
+from charset_normalizer import detect
 
 __version__ = '0.0.1'
 
@@ -359,7 +358,7 @@ def _vcd_readfile(filename, encoding=None, **kwargs):
         # encoding is not define, try to detect it
         with open(filename.strip(), 'rb') as fp:
             raw = fp.read()
-            encoding = chardet.detect(raw)['encoding']
+            encoding = detect(raw)['encoding']
 
     _vcd_info(f'open "{filename}" with encoding "{encoding}"', **kwargs)
     with click.open_file(filename, 'r', encoding=encoding) as fp:
