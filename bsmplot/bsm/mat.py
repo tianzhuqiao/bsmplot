@@ -4,16 +4,25 @@ import traceback
 import wx
 import wx.py.dispatcher as dp
 from scipy import io
+import numpy as np
+import h5py
 from bsmutility.pymgr_helpers import Gcm
 from bsmutility.fileviewbase import TreeCtrlNoTimeStamp, ListCtrlBase, PanelNotebookBase, FileViewBase
 
 def process_record(d):
+    if hasattr(d, 'keys'):
+        keys = [k for k in d.keys() if not k.startswith('__')]
+        data = {}
+        for k in keys:
+            data[k] = process_record(d[k])
+        return data
+
     if d.dtype.names is None:
         if len(d) == 1 and d.dtype.name == 'object':
             return process_record(d[0])
         if hasattr(d, 'shape'):
             if len(d.shape) <= 1 or sorted(d.shape)[-2] == 1:
-                d = d.flatten()
+                d = np.array(d).flatten()
         return d
     data = {}
     for name in d.dtype.names:
@@ -23,15 +32,16 @@ def process_record(d):
 def load_mat(filename):
     data = {'info': {}, 'data': {}}
     try:
-        raw = io.loadmat(filename)
+        try:
+            raw = io.loadmat(filename)
+        except:
+            raw = h5py.File(filename,'r')
+
         data['info']['version'] = raw.get('__version__', '')
         data['info']['header'] = raw.get('__header__', '')
         data['info']['globals'] = raw.get('__globals__', '')
 
-        # data
-        keys = [k for k in raw if not k.startswith('__')]
-        for k in keys:
-            data['data'][k] = process_record(raw[k])
+        data['data'] = process_record(raw)
     except:
         traceback.print_exc(file=sys.stdout)
 
@@ -39,7 +49,12 @@ def load_mat(filename):
 
 
 class MatTree(TreeCtrlNoTimeStamp):
-    pass
+
+    def GetItemDataFromPath(self, path):
+        d = super().GetItemDataFromPath(path)
+        if not self._is_folder(d):
+            d = np.array(d)
+        return d
 
 
 class InfoListCtrl(ListCtrlBase):
