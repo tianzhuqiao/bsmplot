@@ -53,11 +53,14 @@ class MatplotPanel(MPLPanel):
     def __init__(self, parent, title=None, num=-1, thisFig=None):
         MPLPanel.__init__(self, parent, title, num, thisFig)
 
-        dp.connect(self.simLoad, 'sim.loaded')
         dp.connect(self.DataUpdated, 'graph.data_updated')
 
         dt = DataDropTarget(self.canvas)
         self.canvas.SetDropTarget(dt)
+
+    def Destroy(self):
+        dp.disconnect(self.DataUpdated, 'graph.data_updated')
+        super().Destroy()
 
     def DataUpdated(self):
         updated_ax = []
