@@ -14,7 +14,7 @@ import pandas as pd
 import zmq
 import propgrid as pg
 from bsmutility.bsmxpm import open_svg, run_svg, run_grey_svg, pause_svg, pause_grey_svg, \
-                              stop_svg, stop_grey_svg, more_svg
+                              stop_svg, stop_grey_svg, more_svg, saveas_svg
 from bsmutility.utility import svg_to_bitmap
 from bsmutility.pymgr_helpers import Gcm
 from bsmutility.utility import build_tree, get_tree_item_name
@@ -230,12 +230,25 @@ class ZMQTree(TreeCtrlNoTimeStamp):
             line.autorelim = True
         self._graph_retrieved = True
 
+    def get(self, as_tree=True):
+        data = None
+        if len(self.df) == 0:
+            return data
+        keys = self.df[0].keys()
+        data = {}
+        for k in keys:
+            data[k] = [d[k] if k in d else np. nan for d in self.df]
+        data = pd.DataFrame(data)
+        if as_tree:
+            data = build_tree(data)
+        return data
 
 class ZMQPanel(PanelNotebookBase):
     Gcc = Gcm()
     ID_RUN = wx.NewIdRef()
     ID_PAUSE = wx.NewIdRef()
     ID_STOP = wx.NewIdRef()
+    ID_EXPORT = wx.NewIdRef()
 
     def __init__(self, parent, filename=None):
         PanelNotebookBase.__init__(self, parent, filename=filename)
@@ -250,7 +263,8 @@ class ZMQPanel(PanelNotebookBase):
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.OnTimer, self.timer)
         self.timer.Start(5)
-        self.settings = {'protocol': 'tcp://', 'address': 'localhost', 'port': 2967, 'format': 'json', 'maxlen': 1024}
+        self.settings = {'protocol': 'tcp://', 'address': 'localhost', 'port': 2967,
+                         'format': 'json', 'maxlen': 1024}
         self.settings.update(self.LoadSettings())
 
         self.tree.num = self.num
@@ -272,9 +286,10 @@ class ZMQPanel(PanelNotebookBase):
         self.tb.AddTool(self.ID_PAUSE, "Pause", svg_to_bitmap(pause_svg, win=self),
                         svg_to_bitmap(pause_grey_svg, win=self), wx.ITEM_NORMAL,
                         "Pause the ZMQ subscriber")
-        #self.tb.AddTool(self.ID_STOP, "Stop", svg_to_bitmap(stop_svg, win=self),
-        #                svg_to_bitmap(stop_grey_svg, win=self), wx.ITEM_NORMAL,
-        #                "Stop the ZMQ subscriber")
+        self.tb.AddSeparator()
+        self.tb.AddTool(self.ID_EXPORT, "Export", svg_to_bitmap(saveas_svg, win=self),
+                        wx.NullBitmap, wx.ITEM_NORMAL,
+                        "Export the data to csv file")
         self.tb.AddStretchSpacer()
         self.tb.AddTool(self.ID_MORE, "More", svg_to_bitmap(more_svg, win=self),
                         wx.NullBitmap, wx.ITEM_NORMAL, "More")
@@ -458,6 +473,19 @@ class ZMQPanel(PanelNotebookBase):
             self._send_command('pause', block=False)
         elif eid == self.ID_STOP:
             self._send_command('stop', block=False)
+        elif eid == self.ID_EXPORT:
+            style = wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT | wx.FD_CHANGE_DIR
+            dlg = wx.FileDialog(self.GetTopLevelParent(),
+                                'Save As',
+                                wildcard="csv files (*.csv)|*.csv|All files (*.*)|*.*",
+                                style=style)
+            if dlg.ShowModal() == wx.ID_OK:
+                path = dlg.GetPath()
+                df = self.tree.get(as_tree=False)
+                if df is not None:
+                    df.to_csv(path, index=False)
+                else:
+                    print('Invalid data')
         else:
             super().OnProcessCommand(event)
 
@@ -506,14 +534,7 @@ class ZMQ(FileViewBase):
         manager = super().get(num, filename, data_only)
         data = None
         if manager:
-            df = manager.tree.df
-            if len(df) == 0:
-                return data
-            keys = df[0].keys()
-            data = {}
-            for k in keys:
-                data[k] = [d[k] if k in d else np. nan for d in df]
-            data = build_tree(pd.DataFrame(data))
+            return manager.tree.get(as_tree=True)
         return data
 
     @classmethod
