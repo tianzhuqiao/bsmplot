@@ -390,10 +390,12 @@ class ZMQPanel(PanelNotebookBase):
             return
         # stop the simulation kernel. No block operation allowed since
         # no response from the subprocess
-        self._send_command('exit', block=False)
+        # looks like none-blocking command + zmp.join() may not work when close
+        # the panel (some kind of deadlock)
+        self._send_command('exit', block=True)
         #while not self.qresp.empty():
         #    self.qresp.get_nowait()
-        self.zmq.join()
+        #self.zmq.join()
         self.zmq = None
         # stop the client
         self._process_response({'cmd': 'exit'})
@@ -511,14 +513,18 @@ class ZMQ(FileViewBase):
         if isinstance(filename, str):
             return filename.startswith('tcp')
         return False
+
     @classmethod
     def initialized(cls):
+        super().initialized()
+
         # add mat to the shell
         dp.send(signal='shell.run',
                 command='from bsmplot.bsm.zmqs import ZMQ',
                 prompt=False,
                 verbose=False,
                 history=False)
+
     @classmethod
     def process_command(cls, command):
         if command == cls.IDS.get('open', None):
