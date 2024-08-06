@@ -10,5 +10,8 @@ To install
 ```
 $ pip install bsmplot
 ```
-
+or upgrade (with all its dependencies)
+```
+$ pip install bsmplot --upgrade --upgrade-strategy eager
+```
 <img src="https://github.com/tianzhuqiao/bsmplot/blob/main/docs/bsmplot.png?raw=true" width="865" height="575"></img>
