@@ -469,7 +469,7 @@ class AboutDialog(wx.Dialog):
         btnsizer.AddButton(self.btnOK)
         btnsizer.Realize()
 
-        szAll.Add(btnsizer, 0, wx.ALIGN_RIGHT, 10)
+        szAll.Add(btnsizer, 0, wx.ALIGN_RIGHT | wx.ALL, 10)
 
         self.SetSizer(szAll)
         self.Layout()
