@@ -185,7 +185,9 @@ class MainFrame(FramePlus):
         self.SetMenuBar(menubar)
 
         self.AddMenu('&File:New', kind="Popup", autocreate=True)
-        self.AddMenu('&File:Open', kind="Popup")
+        self.AddMenu('&File:Open', kind="Popup", autocreate=True)
+        self.AddMenu('&File:Open:Open\tCtrl+O', id=wx.ID_OPEN)
+        self.AddMenu('&File:Open:Sep', kind="Separator")
         self.AddMenu('&File:Sep', kind="Separator")
         self.AddMenu('&File:Recent Files', kind="Popup")
         self.menuRecentFiles = self.GetMenu(['File', 'Recent Files'])
@@ -204,6 +206,7 @@ class MainFrame(FramePlus):
         self.AddMenu('&Help:About', id=wx.ID_ABOUT)
 
         # Connect Events
+        self.Bind(wx.EVT_MENU, self.OnFileOpen, id=wx.ID_OPEN)
         self.Bind(wx.EVT_MENU, self.OnFileQuit, id=wx.ID_CLOSE)
         self.Bind(wx.EVT_MENU, self.OnHelpHome, id=wx.ID_HOME)
         self.Bind(wx.EVT_MENU, self.OnHelpContact, id=self.ID_CONTACT)
@@ -365,6 +368,17 @@ class MainFrame(FramePlus):
                 self.UpdatePaneMenuLabel()
 
     # Handlers for mainFrame events.
+    def OnFileOpen(self, event):
+        style = wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_MULTIPLE
+        wildcard = "All files (*.*)|*.*"
+        dlg = wx.FileDialog(self, "Choose a file", "", "", wildcard, style)
+        if dlg.ShowModal() == wx.ID_OK:
+            for fname in dlg.GetFilenames():
+                resp = dp.send(signal='frame.file_drop', filename=fname)
+                succeed = resp is not None and any([r[1] is not None for r in resp])
+                if not succeed:
+                    print(f'Can\'t open: {fname}')
+
     def OnFileQuit(self, event):
         """close the program"""
         self.Close(True)
