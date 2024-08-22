@@ -26,9 +26,13 @@ def load_ulog(filename):
     m = [m.message for m in ulg.logged_messages]
     l = [m.log_level_str() for m in ulg.logged_messages]
     log = pd.DataFrame.from_dict({'timestamp': t, 'level': l, "message": m})
-    info = ulg.msg_info_dict
+
+    info = pd.DataFrame.from_dict({'key': ulg.msg_info_dict.keys(),
+                                   'value': ulg.msg_info_dict.values()})
+    info = info.sort_values(by=['key'], ignore_index=True)
     param = ulg.initial_parameters
-    changed_param = ulg.changed_parameters
+
+    changed_param = pd.DataFrame.from_records(ulg.changed_parameters, columns=['timestamp', 'key', 'value'])
     return {'data': data, 'log': log, 'info': info, 'param': param,
             'changed_param': changed_param}
 
@@ -100,19 +104,22 @@ class InfoListCtrl(ListCtrlBase):
         # not found
         return -1
 
-    def Load(self, data):
-        if data is not None:
-            data = [[k, v] for k, v in data.items()]
-            data = sorted(data, key=lambda x: x[0])
-        else:
-            data = []
-        super().Load(data)
-
     def OnGetItemText(self, item, column):
         if column < self.data_start_column:
             return super().OnGetItemText(item, column)
         column -= self.data_start_column
-        return str(self.data_shown[item][column])
+        m = self.data_shown.iloc[item]
+        if column == 0:
+            return str(m.key)
+        if column == 1:
+            return str(m.value)
+        return ""
+
+    def ApplyPattern(self):
+        if not self.pattern:
+            self.data_shown = self.data
+        else:
+            self.data_shown = self.data.loc[self.data.key.str.contains(self.pattern, case=False) | self.data.value.str.contains(self.pattern, case=False)]
 
 class ParamListCtrl(ListCtrlBase):
 
@@ -169,10 +176,20 @@ class ChgParamListCtrl(ListCtrlBase):
         if column < self.data_start_column:
             return super().OnGetItemText(item, column)
         column -= self.data_start_column
-        m = self.data_shown[item]
+        m = self.data_shown.iloc[item]
         if column == 0:
-            return str(m[0]/1e6)
-        return str(m[column])
+            return str(m.timestamp/1e6)
+        if column == 1:
+            return str(m.key)
+        if column == 2:
+            return str(m.value)
+        return ""
+
+    def ApplyPattern(self):
+        if not self.pattern:
+            self.data_shown = self.data
+        else:
+            self.data_shown = self.data.loc[self.data.key.str.contains(self.pattern, case=False) | self.data.value.astype(str).str.contains(self.pattern, case=False)]
 
 
 class ULogPanel(PanelNotebookBase):
@@ -184,7 +201,9 @@ class ULogPanel(PanelNotebookBase):
 
         self.Bind(wx.EVT_TEXT, self.OnDoSearch, self.search)
         self.Bind(wx.EVT_TEXT, self.OnDoSearchLog, self.search_log)
+        self.Bind(wx.EVT_TEXT, self.OnDoSearchInfo, self.search_info)
         self.Bind(wx.EVT_TEXT, self.OnDoSearchParam, self.search_param)
+        self.Bind(wx.EVT_TEXT, self.OnDoSearchChgParam, self.search_chg_param)
 
     def init_pages(self):
         # data page
@@ -194,14 +213,14 @@ class ULogPanel(PanelNotebookBase):
         panel_log, self.search_log, self.logList = self.CreatePageWithSearch(MessageListCtrl)
         self.notebook.AddPage(panel_log, 'Log')
 
-        self.infoList = InfoListCtrl(self.notebook)
-        self.notebook.AddPage(self.infoList, 'Info')
+        panel_info, self.search_info, self.infoList = self.CreatePageWithSearch(InfoListCtrl)
+        self.notebook.AddPage(panel_info, 'Info')
 
         panel_param, self.search_param, self.paramList = self.CreatePageWithSearch(ParamListCtrl)
         self.notebook.AddPage(panel_param, 'Param')
 
-        self.chgParamList = ChgParamListCtrl(self.notebook)
-        self.notebook.AddPage(self.chgParamList, 'Changed Param')
+        panel_chg_param, self.search_chg_param, self.chgParamList = self.CreatePageWithSearch(ChgParamListCtrl)
+        self.notebook.AddPage(panel_chg_param, 'Changed Param')
 
         self.ulg = None
 
@@ -234,9 +253,17 @@ class ULogPanel(PanelNotebookBase):
         pattern = self.search_log.GetValue()
         self.logList.Fill(pattern)
 
+    def OnDoSearchInfo(self, evt):
+        pattern = self.search_info.GetValue()
+        self.infoList.Fill(pattern)
+
     def OnDoSearchParam(self, evt):
         pattern = self.search_param.GetValue()
         self.paramList.Fill(pattern)
+
+    def OnDoSearchChgParam(self, evt):
+        pattern = self.search_chg_param.GetValue()
+        self.chgParamList.Fill(pattern)
 
     @classmethod
     def GetFileType(cls):
