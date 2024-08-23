@@ -15,12 +15,13 @@ from .bsm import auto_load_module
 from .version import PROJECT_NAME
 
 class FileDropTarget(wx.FileDropTarget):
-    def __init__(self):
-        wx.FileDropTarget.__init__(self)
+    def __init__(self, frame):
+        super().__init__()
+        self.frame = frame
 
     def OnDropFiles(self, x, y, filenames):
         for fname in filenames:
-            wx.CallAfter(dp.send, signal='frame.file_drop', filename=fname)
+            wx.CallAfter(self.frame.doOpenFile, filename=fname)
         return True
 
 class TaskBarIcon(wx.adv.TaskBarIcon):
@@ -30,7 +31,7 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
     TBMENU_REMOVE = wx.NewIdRef()
 
     def __init__(self, frame, icon):
-        wx.adv.TaskBarIcon.__init__(self, iconType=wx.adv.TBI_DOCK)
+        super().__init__(iconType=wx.adv.TBI_DOCK)
         self.frame = frame
 
         # Set the image
@@ -88,12 +89,11 @@ class MainFrame(FramePlus):
 
     def __init__(self, parent, **kwargs):
         sz = wx.GetDisplaySize()
-        FramePlus.__init__(self,
-                           parent,
-                           title=PROJECT_NAME,
-                           size=sz*0.9,
-                           style=wx.DEFAULT_FRAME_STYLE | wx.TAB_TRAVERSAL,
-                           **kwargs)
+        super().__init__(parent,
+                         title=PROJECT_NAME,
+                         size=sz*0.9,
+                         style=wx.DEFAULT_FRAME_STYLE | wx.TAB_TRAVERSAL,
+                         **kwargs)
         self.InitMenu()
 
         agw_flags = (self._mgr.GetAGWFlags()
@@ -139,7 +139,7 @@ class MainFrame(FramePlus):
         self.closing = False
 
         # Create & Link the Drop Target Object to main window
-        self.SetDropTarget(FileDropTarget())
+        self.SetDropTarget(FileDropTarget(self))
 
         self.Bind(wx.EVT_ACTIVATE, self.OnActivate)
         self.Bind(aui.EVT_AUI_PANE_ACTIVATED, self.OnPaneActivated)
@@ -368,16 +368,19 @@ class MainFrame(FramePlus):
                 self.UpdatePaneMenuLabel()
 
     # Handlers for mainFrame events.
+    def doOpenFile(self, filename):
+        resp = dp.send(signal='frame.file_drop', filename=filename)
+        succeed = resp is not None and any([r[1] is not None for r in resp])
+        if not succeed:
+            print(f'Can\'t open: {filename}')
+
     def OnFileOpen(self, event):
         style = wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_MULTIPLE
         wildcard = "All files (*.*)|*.*"
         dlg = wx.FileDialog(self, "Choose a file", "", "", wildcard, style)
         if dlg.ShowModal() == wx.ID_OK:
             for fname in dlg.GetFilenames():
-                resp = dp.send(signal='frame.file_drop', filename=fname)
-                succeed = resp is not None and any([r[1] is not None for r in resp])
-                if not succeed:
-                    print(f'Can\'t open: {fname}')
+                self.doOpenFile(fname)
 
     def OnFileQuit(self, event):
         """close the program"""
@@ -408,15 +411,14 @@ class MainFrame(FramePlus):
         fileNum = event.GetId() - self.ids_file_history[0].GetId()
         path = self.filehistory.GetHistoryFile(fileNum)
         self.filehistory.AddFileToHistory(path)
-        dp.send('frame.file_drop', filename=path, activated=True)
+        self.doOpenFile(path)
 
 
 class AboutDialog(wx.Dialog):
     def __init__(self, parent):
-        wx.Dialog.__init__(self,
-                           parent,
-                           title=f"About {PROJECT_NAME}",
-                           style=wx.DEFAULT_DIALOG_STYLE)
+        super().__init__(parent,
+                         title=f"About {PROJECT_NAME}",
+                         style=wx.DEFAULT_DIALOG_STYLE)
 
         szAll = wx.BoxSizer(wx.VERTICAL)
 
@@ -476,14 +478,12 @@ class AboutDialog(wx.Dialog):
 
         szAll.Add(self.panel, 1, wx.EXPAND | wx.ALL, 0)
 
-        btnsizer = wx.StdDialogButtonSizer()
-
+        btnsizer = wx.BoxSizer(wx.HORIZONTAL)
+        btnsizer.AddStretchSpacer()
         self.btnOK = wx.Button(self, wx.ID_OK)
         self.btnOK.SetDefault()
-        btnsizer.AddButton(self.btnOK)
-        btnsizer.Realize()
-
-        szAll.Add(btnsizer, 0, wx.ALIGN_RIGHT | wx.ALL, 10)
+        btnsizer.Add(self.btnOK, 0, wx.EXPAND | wx.ALL, 5)
+        szAll.Add(btnsizer, 0, wx.EXPAND | wx.ALL, 5)
 
         self.SetSizer(szAll)
         self.Layout()
