@@ -152,9 +152,6 @@ class VcdTree(TreeCtrlWithTimeStamp):
             return d[self.timestamp_key]
         return None
 
-    def GetPlotXLabel(self):
-        return 't(s)'
-
     def GetItemPlotData(self, item):
         x, y = super().GetItemPlotData(item)
         if x is not None:

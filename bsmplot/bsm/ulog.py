@@ -45,9 +45,6 @@ class ULogTree(TreeCtrlWithTimeStamp):
             x = x/1e6
         return x, y
 
-    def GetPlotXLabel(self):
-        return "t(s)"
-
 class MessageListCtrl(ListCtrlBase):
 
     def BuildColumns(self):
