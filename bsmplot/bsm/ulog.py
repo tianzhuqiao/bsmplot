@@ -40,8 +40,8 @@ class ULogTree(TreeCtrlWithTimeStamp):
 
     def GetItemPlotData(self, item):
         x, y = super().GetItemPlotData(item)
-        if x is not None:
-            # convert us to s
+        if (x is not None) and np.all(x == self.GetItemTimeStamp(item)):
+            # convert timestamp from us to s
             x = x/1e6
         return x, y
 
