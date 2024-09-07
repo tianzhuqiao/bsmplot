@@ -144,9 +144,6 @@ class MainFrame(FramePlus):
         self.Bind(wx.EVT_ACTIVATE, self.OnActivate)
         self.Bind(aui.EVT_AUI_PANE_ACTIVATED, self.OnPaneActivated)
         self.Bind(aui.EVT_AUI_PANE_CLOSE, self.OnPaneClose)
-        dp.connect(self.SetPanelTitle, 'frame.set_panel_title')
-        dp.connect(self.ShowStatusText, 'frame.show_status_text')
-        dp.connect(self.AddFileHistory, 'frame.add_file_history')
 
         # append sys path
         sys.path.append('')
@@ -357,15 +354,6 @@ class MainFrame(FramePlus):
         if self.closing:
             return
         dp.send('frame.close_pane', event=event)
-
-    def SetPanelTitle(self, pane, title):
-        """set the panel title"""
-        if pane:
-            info = self._mgr.GetPane(pane)
-            if info and info.IsOk() and info.caption != title:
-                info.Caption(title)
-                self._mgr.RefreshPaneCaption(pane)
-                self.UpdatePaneMenuLabel()
 
     # Handlers for mainFrame events.
     def doOpenFile(self, filename):
