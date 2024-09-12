@@ -45,11 +45,12 @@ class SHELL(Interface):
 
     @classmethod
     def uninitialized(cls):
+        super().uninitialized()
         if cls.shell:
             cls.shell.redirectStdout(False)
             cls.shell.redirectStderr(False)
             dp.send('frame.delete_panel', panel=cls.shell)
-        super().uninitialized()
+            cls.shell = None
 
 def bsm_initialize(frame, **kwargs):
     SHELL.initialize(frame, **kwargs)
