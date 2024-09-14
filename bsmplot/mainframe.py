@@ -188,13 +188,6 @@ class MainFrame(FramePlus):
         dlg.ShowModal()
         dlg.Destroy()
 
-    def OnMenuFileHistory(self, event):
-        """open the recent file"""
-        fileNum = event.GetId() - self.ids_file_history[0].GetId()
-        path = self.filehistory.GetHistoryFile(fileNum)
-        self.filehistory.AddFileToHistory(path)
-        self.doOpenFile(path)
-
 
 class AboutDialog(wx.Dialog):
     def __init__(self, parent):
