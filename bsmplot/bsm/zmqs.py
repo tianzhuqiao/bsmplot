@@ -468,7 +468,8 @@ class ZMQPanel(PanelNotebookBase):
             if ipaddr is not None:
                 self.Load(filename=ipaddr)
                 title = self.GetCaption()
-                dp.send('frame.set_panel_title', pane=self, title=title)
+                dp.send('frame.set_panel_title', pane=self, title=title,
+                        name=ipaddr)
         elif eid == self.ID_RUN:
             self._send_command('start', block=False)
         elif eid == self.ID_PAUSE:

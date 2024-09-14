@@ -24,7 +24,8 @@ class SHELL(Interface):
                 panel=cls.shell,
                 active=active,
                 title="Shell",
-                direction=direction)
+                direction=direction,
+                name='shell')
 
     @classmethod
     def initialized(cls):
