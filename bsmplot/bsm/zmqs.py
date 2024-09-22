@@ -1,3 +1,4 @@
+import os
 import sys
 import re
 import json
@@ -14,7 +15,9 @@ import pandas as pd
 import zmq
 import propgrid as pg
 from bsmutility.bsmxpm import open_svg, run_svg, run_grey_svg, pause_svg, pause_grey_svg, \
-                              stop_svg, stop_grey_svg, more_svg, saveas_svg
+                              stop_svg, stop_grey_svg, more_svg, saveas_svg, download_svg, \
+                              upload_svg
+
 from bsmutility.utility import svg_to_bitmap
 from bsmutility.pymgr_helpers import Gcm
 from bsmutility.utility import build_tree, get_tree_item_name
@@ -163,8 +166,23 @@ class ZMQTree(TreeCtrlNoTimeStamp):
         # flatten the tree, so make it easy to combine multiple frames together
         # e.g., frame 1: {'a': [1, 2, 3]}, frame 2 {'a': [1, 2, 3]}, after
         # combination, it shall become {'a[0]': [1, 1], 'a[1]': [2, 2], 'a[3]': [3, 3]}
-        data_f = flatten(data)
-        self.df.append(data_f)
+        self.df.clear()
+        data_f = {}
+        if data is not None:
+            data_f = flatten(data)
+            self.df.append(data_f)
+        elif isinstance(filename, str) and os.path.isfile(filename):
+            with open(filename, "r") as ins:
+                num_lines = sum(1 for _ in ins)
+            with open(filename, "r") as ins:
+                self.SetQueueMaxLen(num_lines)
+                for line in ins:
+                    try:
+                        self.df.append(flatten(json.loads(line)))
+                    except:
+                        continue
+            if len(self.df) > 0:
+                data_f = self.df[0]
         super().Load(build_tree(data_f), filename)
 
     def SetQueueMaxLen(self, maxlen):
@@ -248,7 +266,9 @@ class ZMQPanel(PanelNotebookBase):
     ID_RUN = wx.NewIdRef()
     ID_PAUSE = wx.NewIdRef()
     ID_STOP = wx.NewIdRef()
-    ID_EXPORT = wx.NewIdRef()
+    ID_EXPORT_CSV = wx.NewIdRef()
+    ID_EXPORT_JSON = wx.NewIdRef()
+    ID_IMPORT_JSON = wx.NewIdRef()
 
     def __init__(self, parent, filename=None):
         PanelNotebookBase.__init__(self, parent, filename=filename)
@@ -287,7 +307,14 @@ class ZMQPanel(PanelNotebookBase):
                         svg_to_bitmap(pause_grey_svg, win=self), wx.ITEM_NORMAL,
                         "Pause the ZMQ subscriber")
         self.tb.AddSeparator()
-        self.tb.AddTool(self.ID_EXPORT, "Export", svg_to_bitmap(saveas_svg, win=self),
+        self.tb.AddTool(self.ID_IMPORT_JSON, "Import", svg_to_bitmap(upload_svg, win=self),
+                        wx.NullBitmap, wx.ITEM_NORMAL,
+                        "Import the data from json list file")
+        self.tb.AddSeparator()
+        self.tb.AddTool(self.ID_EXPORT_JSON, "Export json list", svg_to_bitmap(download_svg, win=self),
+                        wx.NullBitmap, wx.ITEM_NORMAL,
+                        "Export the data to json list file")
+        self.tb.AddTool(self.ID_EXPORT_CSV, "Export CSV", svg_to_bitmap(saveas_svg, win=self),
                         wx.NullBitmap, wx.ITEM_NORMAL,
                         "Export the data to csv file")
         self.tb.AddStretchSpacer()
@@ -476,7 +503,31 @@ class ZMQPanel(PanelNotebookBase):
             self._send_command('pause', block=False)
         elif eid == self.ID_STOP:
             self._send_command('stop', block=False)
-        elif eid == self.ID_EXPORT:
+        elif eid == self.ID_IMPORT_JSON:
+            style = wx.FD_OPEN | wx.FD_CHANGE_DIR
+            dlg = wx.FileDialog(self.GetTopLevelParent(),
+                                'Open',
+                                wildcard="All files (*.*)|*.*",
+                                style=style)
+            if dlg.ShowModal() == wx.ID_OK:
+                path = dlg.GetPath()
+                self.tree.Load(data=None, filename=path)
+        elif eid == self.ID_EXPORT_JSON:
+            style = wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT | wx.FD_CHANGE_DIR
+            dlg = wx.FileDialog(self.GetTopLevelParent(),
+                                'Save As',
+                                wildcard="All files (*.*)|*.*",
+                                style=style)
+            if dlg.ShowModal() == wx.ID_OK:
+                path = dlg.GetPath()
+                with open(path, 'w') as fp:
+                    for line in self.tree.df:
+                        try:
+                            line = json.dumps(build_tree(line))
+                        except:
+                            continue
+                        fp.write(f"{line}\n")
+        elif eid == self.ID_EXPORT_CSV:
             style = wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT | wx.FD_CHANGE_DIR
             dlg = wx.FileDialog(self.GetTopLevelParent(),
                                 'Save As',

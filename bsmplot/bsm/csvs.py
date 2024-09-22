@@ -68,6 +68,9 @@ class CSV(FileViewBase):
 
     @classmethod
     def check_filename(cls, filename):
+        if not super().check_filename(filename):
+            return False
+
         if filename is None:
             return True
 
