@@ -8,7 +8,6 @@ import wx.py.dispatcher as dp
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype, is_integer_dtype
-from vcd.reader import TokenKind, tokenize
 from bsmutility.pymgr_helpers import Gcm
 from bsmutility.utility import _dict, get_variable_name, send_data_to_shell
 from bsmutility.utility import build_tree, get_tree_item_path
@@ -24,85 +23,16 @@ def load_vcd3(filename):
     vcd['data'] = build_tree(vcd['data'])
     return vcd
 
-def load_vcd(filename):
-    vcd = {'info':{}, 'data':{}, 'var': {}, 'comment': []}
-    with open(filename, 'rb') as fp:
-        time_units = {'fs': 1e-15, 'ps': 1e-12, 'ns': 1e-9, 'us': 1e-6, 'ms': 1e-3, 's': 1}
-        tokens = tokenize(fp)
-        token = next(tokens)
-        t = 0
-        while True:
-            try:
-                token = next(tokens)
-            except StopIteration:
-                break
-            except:
-                traceback.print_exc(file=sys.stdout)
-                break
-            if token.kind in [TokenKind.CHANGE_VECTOR, TokenKind.CHANGE_REAL,
-                                TokenKind.CHANGE_SCALAR, TokenKind.CHANGE_STRING]:
-                if not token.data.id_code in vcd['data']:
-                    vcd['data'][token.data.id_code] = []
-                vcd['data'][token.data.id_code] += [[t, token.data.value]]
-
-            elif token.kind == TokenKind.CHANGE_TIME:
-                t = token.data
-            elif token.kind in [TokenKind.DATE, TokenKind.VERSION]:
-                vcd['info'][token.kind.name] = token.data.strip()
-            elif token.kind == TokenKind.TIMESCALE:
-                vcd['info'][token.kind.name] = f'{token.data.magnitude.value} {token.data.unit.value}'
-                vcd['timescale'] = token.data.magnitude.value * time_units[token.data.unit.value]
-            elif token.kind == TokenKind.SCOPE:
-                vcd['info'][token.kind.name] = f'{token.data.ident} {token.data.type_}'
-            elif token.kind == TokenKind.VAR:
-                vcd['var'][token.data.id_code] = {'reference': token.data.reference,
-                                                  'bit': token.data.bit_index,
-                                                  'type': token.data.type_.value,
-                                                  'size': token.data.size}
-            elif token.kind == TokenKind.COMMENT:
-                vcd['comment'].append(token.data)
-
-
-
-        for k in list(vcd['data'].keys()):
-            signal = k
-            if k in vcd['var']:
-                signal = vcd['var'][k].get('reference', None) or k
-                if signal != k:
-                    if signal in vcd['data']:
-                        num = len([dk for dk in vcd['data'] if dk == signal])
-                        print(f'Found duplicated signal "{signal}"')
-                        signal  = f"{signal}-{num}"
-                    vcd['data'][signal] = vcd['data'].pop(k)
-
-            vcd['data'][signal] = pd.DataFrame.from_records(vcd['data'][signal], columns=['timestamp', signal])
-
-        for k in list(vcd['data'].keys()):
-            signal = k.split('.')
-            if len(signal) > 1:
-                d = vcd['data']
-                for i in range(len(signal)-1):
-                    if not signal[i] in d:
-                        d[signal[i]] = {}
-                    d = d[signal[i]]
-                d[signal[-1]] = vcd['data'].pop(k)
-                d[signal[-1]].rename(columns={k: signal[-1]}, inplace=True)
-    return vcd
-
-
 def GetDataBit(value, bit):
     if not is_integer_dtype(value) or bit < 0:
         return None
     return value.map(lambda x: (x >> bit) & 1)
 
 class VcdTree(TreeCtrlWithTimeStamp):
-    ID_VCD_EXPORT = wx.NewIdRef()
-    ID_VCD_EXPORT_WITH_TIMESTAMP = wx.NewIdRef()
     ID_VCD_EXPORT_RAW = wx.NewIdRef()
     ID_VCD_EXPORT_RAW_WITH_TIMESTAMP = wx.NewIdRef()
     ID_VCD_EXPORT_BITS = wx.NewIdRef()
     ID_VCD_EXPORT_BITS_WITH_TIMESTAMP = wx.NewIdRef()
-    ID_VCD_PLOT = wx.NewIdRef()
     ID_VCD_PLOT_BITS = wx.NewIdRef()
     ID_VCD_PLOT_BITS_VERT = wx.NewIdRef()
     ID_VCD_TO_PYINT = wx.NewIdRef()
@@ -181,16 +111,28 @@ class VcdTree(TreeCtrlWithTimeStamp):
         return None
 
     def GetItemMenu(self, item):
+        menu = super().GetItemMenu(item)
         if not item.IsOk() or self.ItemHasChildren(item):
-            return None
+            return menu
         value = self.GetItemData(item)
         if value is None:
-            return None
+            return menu
 
-        menu = wx.Menu()
-        menu.Append(self.ID_VCD_EXPORT, "&Export to shell")
+        def _find_menu(menuid):
+            idx = 0
+            while idx < menu.GetMenuItemCount():
+                m = menu.FindItemByPosition(idx)
+                if m.GetId() == menuid:
+                    break
+                idx += 1
+            while idx < menu.GetMenuItemCount():
+                m = menu.FindItemByPosition(idx)
+                if m.IsSeparator():
+                    break
+                idx += 1
+            return idx
+
         if isinstance(value, pd.Series):
-            menu.Append(self.ID_VCD_EXPORT_WITH_TIMESTAMP, "E&xport to shell with timestamp")
             export_menu = wx.Menu()
             export_menu.Append(self.ID_VCD_EXPORT_RAW, "Export raw value to shell")
             export_menu.Append(self.ID_VCD_EXPORT_RAW_WITH_TIMESTAMP, "Export raw value to shell with timestamp")
@@ -198,16 +140,17 @@ class VcdTree(TreeCtrlWithTimeStamp):
                 export_menu.AppendSeparator()
                 export_menu.Append(self.ID_VCD_EXPORT_BITS, "Export selected bits to shell")
                 export_menu.Append(self.ID_VCD_EXPORT_BITS_WITH_TIMESTAMP, "Export selected bits to shell with timestamp")
-            menu.AppendSubMenu(export_menu, 'More ...')
+            idx = _find_menu(self.ID_EXPORT)
+            menu.Insert(idx, id=wx.ID_ANY, text='More ...', submenu=export_menu)
 
             if is_numeric_dtype(value):
-                menu.AppendSeparator()
-                menu.Append(self.ID_VCD_PLOT, "Plot")
                 if is_integer_dtype(value):
-                    menu.Append(self.ID_VCD_PLOT_BITS, "Plot selected bits")
-                    menu.Append(self.ID_VCD_PLOT_BITS_VERT, "Plot selected bits vertically")
+                    idx = _find_menu(self.ID_PLOT)
+                    menu.Insert(idx, self.ID_VCD_PLOT_BITS, "Plot selected bits")
+                    menu.Insert(idx, self.ID_VCD_PLOT_BITS_VERT, "Plot selected bits vertically")
 
-            menu.AppendSeparator()
+            idx = _find_menu(self.ID_EXPORT)
+            menu.InsertSeparator(idx)
             type_menu = wx.Menu()
             mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_PYINT, "int in Python")
             mitem.Check(isinstance(value[0], int))
@@ -242,10 +185,11 @@ class VcdTree(TreeCtrlWithTimeStamp):
                 mitem = type_menu.AppendCheckItem(self.ID_VCD_TO_FLOAT128, "float128")
                 mitem.Check(value.dtype == np.float128)
 
-            menu.AppendSubMenu(type_menu, 'As type')
+            menu.Insert(pos=idx+1, id=wx.ID_ANY, text='As type', submenu=type_menu)
         return menu
 
     def OnProcessCommand(self, cmd, item):
+        super().OnProcessCommand(cmd, item)
         text = self.GetItemText(item)
         path = super().GetItemPath(item)
         data = self.GetItemFullDataFromPath(path)
@@ -278,18 +222,15 @@ class VcdTree(TreeCtrlWithTimeStamp):
                 return
             except ValueError:
                 pass
-            print(f"Fail to convert to {nptype}")
+            print(f"Fail to convert {text} to {nptype}")
 
-        if cmd in [self.ID_VCD_EXPORT, self.ID_VCD_EXPORT_WITH_TIMESTAMP,
-                   self.ID_VCD_EXPORT_RAW, self.ID_VCD_EXPORT_RAW_WITH_TIMESTAMP]:
+        if cmd in [self.ID_VCD_EXPORT_RAW, self.ID_VCD_EXPORT_RAW_WITH_TIMESTAMP]:
             name = get_variable_name(path)
             if isinstance(data, pd.DataFrame):
                 df = pd.DataFrame()
-                if cmd in [self.ID_VCD_EXPORT_WITH_TIMESTAMP,
-                           self.ID_VCD_EXPORT_RAW_WITH_TIMESTAMP]:
+                if cmd in [self.ID_VCD_EXPORT_RAW_WITH_TIMESTAMP]:
                     df[self.timestamp_key] = data[self.timestamp_key]
-                if cmd in [self.ID_VCD_EXPORT_RAW,
-                           self.ID_VCD_EXPORT_RAW_WITH_TIMESTAMP]:
+                if cmd in [self.ID_VCD_EXPORT_RAW_WITH_TIMESTAMP]:
                     df[data_name] = data['raw']
                 else:
                     df[data_name] = value
@@ -305,11 +246,8 @@ class VcdTree(TreeCtrlWithTimeStamp):
                     df.insert(loc=0, column=self.timestamp_key, value=data[self.timestamp_key])
                 send_data_to_shell(name, df)
 
-        elif cmd in [self.ID_VCD_PLOT, self.ID_VCD_PLOT_BITS, self.ID_VCD_PLOT_BITS_VERT]:
+        elif cmd in [self.ID_VCD_PLOT_BITS, self.ID_VCD_PLOT_BITS_VERT]:
             x, y = self.GetItemPlotData(item)
-            if cmd == self.ID_VCD_PLOT:
-                self.plot(x, y, '/'.join(path))
-                return
             # plot bits
             df = self.GetDataBits(value)
             if df is not None:

@@ -181,6 +181,7 @@ class VCDParse:
         for k in self.vcd['data']:
             self.vcd['data'][k] = pd.DataFrame.from_records(self.vcd['data'][k],
                                                             columns=['timestamp', 'raw'])
+            self.vcd['data'][k]['value'] = self.vcd['data'][k].raw
             try:
                 # try to convert string to int (DATA_LOGIC/BINARY
                 if pd.api.types.is_string_dtype(self.vcd['data'][k].raw):
