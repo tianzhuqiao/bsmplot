@@ -183,6 +183,8 @@ class ZMQTree(TreeCtrlNoTimeStamp):
                         continue
             if len(self.df) > 0:
                 data_f = self.df[0]
+            else:
+                print(f"Invalid or empty data file: {filename}")
         super().Load(build_tree(data_f), filename)
 
     def SetQueueMaxLen(self, maxlen):
@@ -238,7 +240,7 @@ class ZMQTree(TreeCtrlNoTimeStamp):
         key = self.GetItemKeyFromPath(path)
         data = [d[key] if key in d else np.nan for d in self.df]
         data = np.array(data)
-        return None if np.isnan(data).all() else data
+        return None if pd.isna(data).all() else data
 
     def PlotItem(self, item, confirm=True):
         line = super().PlotItem(item, confirm=confirm)
@@ -357,7 +359,7 @@ class ZMQPanel(PanelNotebookBase):
         value = resp.get('value', False)
         if command == 'data':
             # fmt = self.settings.get('format', 'json')
-            self.tree.Update(json.loads(value), self.filename)
+            self.tree.Update(json.loads(value))
         elif command in ['start', 'pause', 'stop']:
             if value:
                 self.zmq_status = command
@@ -439,25 +441,34 @@ class ZMQPanel(PanelNotebookBase):
 
     def GetIPAddress(self):
         s = self.settings
-        filename = f"{s['protocol']}{s['address']}:{s['port']}"
-        return filename
+        if 'protocol' in s and 'address' in s and 'port' in s:
+            filename = f"{s['protocol']}{s['address']}:{s['port']}"
+            return filename
+        return None
 
     def Load(self, filename, add_to_history=True):
         """start the ZMQ subscriber"""
         if isinstance(filename, str):
-            filename = json.loads(filename)
-        if not isinstance(filename, dict) or 'protocol' not in filename or \
-           'address' not in filename or 'port' not in filename:
-            print('Invalid server settings: {filename}')
-            return
-        self.settings.update(filename)
-        self.tree.SetQueueMaxLen(self.settings['maxlen'])
+            if not os.path.isfile(filename):
+                try:
+                    filename = json.loads(filename)
+                except:
+                    print('Invalid server settings: {filename}')
+                    return
+        if isinstance(filename, dict):
+            if 'protocol' not in filename or 'address' not in filename or \
+                'port' not in filename:
+                print('Invalid server settings: {filename}')
+                return
+            self.settings.update(filename)
+            self.tree.SetQueueMaxLen(self.settings['maxlen'])
 
-        resp = dp.send('frame.set_config', group='zmqs', settings=self.settings)
-        if resp and resp[0][1] is not None:
-            self.settings = resp[0][1]
-        filename = self.GetIPAddress()
-        self.start()
+            resp = dp.send('frame.set_config', group='zmqs', settings=self.settings)
+            if resp and resp[0][1] is not None:
+                self.settings = resp[0][1]
+            self.start()
+        else:
+            self.tree.Load(data=None, filename=filename)
         super().Load(filename, add_to_history=False)
 
     def OnDoSearch(self, evt):
@@ -469,7 +480,9 @@ class ZMQPanel(PanelNotebookBase):
         self.search.SetFocus()
 
     def GetCaption(self):
-        return self.filename
+        if isinstance(self.filename, str):
+            return super().GetCaption()
+        return self.GetIPAddress() or "unknown"
 
     @classmethod
     def GetSettings(cls, parent, settings=None):
@@ -511,7 +524,7 @@ class ZMQPanel(PanelNotebookBase):
                                 style=style)
             if dlg.ShowModal() == wx.ID_OK:
                 path = dlg.GetPath()
-                self.tree.Load(data=None, filename=path)
+                self.Load(filename=path)
         elif eid == self.ID_EXPORT_JSON:
             style = wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT | wx.FD_CHANGE_DIR
             dlg = wx.FileDialog(self.GetTopLevelParent(),
