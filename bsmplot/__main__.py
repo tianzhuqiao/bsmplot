@@ -1,11 +1,16 @@
+import sys
+import os
+import traceback
 import multiprocessing
 import ctypes
 import wx
 import click
+from bsmutility.utility import create_shortcut
 from .mainframe import MainFrame
 from .version import __version__, PROJECT_NAME
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(True)
+    wx.PyApp.IsDisplayAvailable = lambda _: True
 except:
     pass
 
@@ -48,10 +53,18 @@ class RunApp(wx.App):
 @click.option('--debug',
               is_flag=True,
               help='Run in debug mode.')
+@click.option('--init', is_flag=True)
 @click.argument('module', nargs=-1)
-def main(config, path, ignore_perspective, spawn, debug,module):
+def main(config, path, ignore_perspective, spawn, debug, module, init):
     if spawn and hasattr(multiprocessing, 'set_start_method'):
         multiprocessing.set_start_method('spawn')
+    if init:
+        folder, _ = os.path.split(__file__)
+        icns = f'{folder}/ico/mainframe.icns'
+        ico = f'{folder}/ico/mainframe.ico'
+        svg = f'{folder}/ico/mainframe.svg'
+        create_shortcut(PROJECT_NAME, icns, ico, svg)
+        return
     app = RunApp(config=config,
                  ignore_perspective=ignore_perspective,
                  path=path,

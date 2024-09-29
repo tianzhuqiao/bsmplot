@@ -33,5 +33,8 @@ bsmplot = "bsmplot.__main__:main"
 [tool.setuptools.packages]
 find = {}
 
+[tool.setuptools.package-data]
+bsmplot = ["ico/*.icns", "ico/*.ico", "ico/*.svg"]
+
 [options]
 include_package_data = true
