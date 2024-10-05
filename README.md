@@ -10,8 +10,12 @@ To install
 ```
 $ pip install bsmplot
 ```
-or upgrade (with all its dependencies)
+To start
 ```
-$ pip install bsmplot --upgrade --upgrade-strategy eager
+$ bsmplot
+```
+Add shortcut to desktop and/or Start Menu
+```
+$ bsmplot --init
 ```
 <img src="https://github.com/tianzhuqiao/bsmplot/blob/main/docs/bsmplot.png?raw=true" width="865" height="575"></img>
