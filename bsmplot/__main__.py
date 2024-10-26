@@ -53,7 +53,7 @@ class RunApp(wx.App):
 @click.option('--debug',
               is_flag=True,
               help='Run in debug mode.')
-@click.option('--init', is_flag=True)
+@click.option('--init', is_flag=True, help=f"Initialize {PROJECT_NAME}, e.g, create desktop shortcut.")
 @click.argument('module', nargs=-1)
 def main(config, path, ignore_perspective, spawn, debug, module, init):
     if spawn and hasattr(multiprocessing, 'set_start_method'):
