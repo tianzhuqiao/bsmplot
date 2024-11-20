@@ -94,8 +94,8 @@ class InfoListCtrl(ListCtrlBase):
     def FindText(self, start, end, text, flags=0):
         direction = 1 if end > start else -1
         for i in range(start, end+direction, direction):
-            m = self.data_shown[i]
-            if self.Search(m[0], text, flags) or self.Search(str(m[1]), text, flags):
+            m = self.data_shown.iloc[i]
+            if self.Search(m['key'], text, flags) or self.Search(str(m['value']), text, flags):
                 return i
 
         # not found
