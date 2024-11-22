@@ -74,6 +74,10 @@ class MatplotPanel(MPLPanel):
                 resp = dp.send(signal, num=num, path=path)
                 if not resp:
                     continue
+                # ignore the zmq when different "num"
+                resp = [r for r in resp if len(r[1]) == 2 and r[1][0] is not None and r[1][1] is not None]
+                if not resp:
+                    continue
                 x, y = resp[0][1]
                 if x is None or y is None:
                     continue
