@@ -359,7 +359,7 @@ class ZMQPanel(PanelNotebookBase):
         value = resp.get('value', False)
         if command == 'data':
             # fmt = self.settings.get('format', 'json')
-            self.tree.Update(json.loads(value))
+            self.tree.Update(json.loads(value), self.GetCaption())
         elif command in ['start', 'pause', 'stop']:
             if value:
                 self.zmq_status = command
