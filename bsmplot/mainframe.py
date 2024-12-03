@@ -4,80 +4,13 @@ import wx.py
 import wx.py.dispatcher as dp
 import wx.adv
 import aui2 as aui
-from bsmutility.frameplus import FramePlus
+from bsmutility.frameplus import FramePlus, TaskBarIcon
 from bsmutility.utility import svg_to_bitmap
 from .mainframexpm import  mainframe_svg
 from . import __version__
 from .bsm import auto_load_module
 from .version import PROJECT_NAME
 
-class FileDropTarget(wx.FileDropTarget):
-    def __init__(self, frame):
-        super().__init__()
-        self.frame = frame
-
-    def OnDropFiles(self, x, y, filenames):
-        for fname in filenames:
-            wx.CallAfter(self.frame.doOpenFile, filename=fname)
-        return True
-
-class TaskBarIcon(wx.adv.TaskBarIcon):
-    TBMENU_RESTORE = wx.NewIdRef()
-    TBMENU_CLOSE = wx.NewIdRef()
-    TBMENU_CHANGE = wx.NewIdRef()
-    TBMENU_REMOVE = wx.NewIdRef()
-
-    def __init__(self, frame, icon):
-        super().__init__(iconType=wx.adv.TBI_DOCK)
-        self.frame = frame
-
-        # Set the image
-        self.SetIcon(icon, PROJECT_NAME)
-        self.imgidx = 1
-
-        # bind some events
-        #self.Bind(wx.EVT_TASKBAR_LEFT_DCLICK, self.OnTaskBarActivate)
-        self.Bind(wx.EVT_MENU, self.OnTaskBarActivate, id=self.TBMENU_RESTORE)
-        self.Bind(wx.EVT_MENU, self.OnTaskBarClose, id=self.TBMENU_CLOSE)
-
-
-    def CreatePopupMenu(self):
-        """
-        This method is called by the base class when it needs to popup
-        the menu for the default EVT_RIGHT_DOWN event.  Just create
-        the menu how you want it and return it from this function,
-        the base class takes care of the rest.
-        """
-        menu = wx.Menu()
-        menu.Append(self.TBMENU_RESTORE, f"Restore {PROJECT_NAME}")
-        menu.Append(self.TBMENU_CLOSE, f"Close {PROJECT_NAME}")
-        return menu
-
-
-    def MakeIcon(self, img):
-        """
-        The various platforms have different requirements for the
-        icon size...
-        """
-        if "wxMSW" in wx.PlatformInfo:
-            img = img.Scale(16, 16)
-        elif "wxGTK" in wx.PlatformInfo:
-            img = img.Scale(22, 22)
-        # wxMac can be any size upto 128x128, so leave the source img alone....
-        icon = wx.Icon(img.ConvertToBitmap())
-        return icon
-
-
-    def OnTaskBarActivate(self, evt):
-        if self.frame.IsIconized():
-            self.frame.Iconize(False)
-        if not self.frame.IsShown():
-            self.frame.Show(True)
-        self.frame.Raise()
-
-
-    def OnTaskBarClose(self, evt):
-        wx.CallAfter(self.frame.Close)
 
 class MainFrame(FramePlus):
     CONFIG_NAME = PROJECT_NAME
@@ -107,16 +40,7 @@ class MainFrame(FramePlus):
 
         if 'wxMac' in wx.PlatformInfo:
             icon.CopyFromBitmap(svg_to_bitmap(mainframe_svg, size=(1024, 1024), win=self))
-            self.tbicon = TaskBarIcon(self, icon)
-
-        # status bar
-        self.statusbar = wx.StatusBar(self)
-        self.SetStatusBar(self.statusbar)
-        self.statusbar_width = [-1]
-        self.statusbar.SetStatusWidths(self.statusbar_width)
-
-        # Create & Link the Drop Target Object to main window
-        self.SetDropTarget(FileDropTarget(self))
+            self.tbicon = TaskBarIcon(self, icon, PROJECT_NAME)
 
         dp.send(signal='shell.run',
                 command='import pandas as pd',
@@ -155,17 +79,6 @@ class MainFrame(FramePlus):
     def OnCloseWindow(self, evt):
         self.tbicon.Destroy()
         evt.Skip()
-
-    def ShowStatusText(self, text, index=0, width=-1):
-        """set the status text"""
-        if index >= len(self.statusbar_width):
-            exd = [0] * (index + 1 - len(self.statusbar_width))
-            self.statusbar_width.extend(exd)
-            self.statusbar.SetFieldsCount(index + 1)
-        if self.statusbar_width[index] < width:
-            self.statusbar_width[index] = width
-            self.statusbar.SetStatusWidths(self.statusbar_width)
-        self.statusbar.SetStatusText(text, index)
 
     # Handlers for mainFrame events.
     def OnHelpHome(self, event):
