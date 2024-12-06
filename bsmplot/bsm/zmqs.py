@@ -52,11 +52,30 @@ class ZMQLogger:
         pass
 
 class ZMQMessage:
-    def __init__(self, ipaddr, qcmd, qresp):
+    def __init__(self, ipaddr, qcmd, qresp, fmt='json'):
         self.qcmd = qcmd
         self.qresp = qresp
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.SUB)
+
+        self.fmt = fmt
+        self.serialize_zmq = None
+        self.receive_zmq = self.socket.recv
+        try:
+            if fmt == 'bson':
+                import bson
+                self.serialize_zmq = bson.loads
+            elif fmt == 'cbor':
+                import cbor2
+                self.serialize_zmq = cbor2.loads
+            elif fmt == 'msgpack':
+                import msgpack
+                self.serialize_zmq = msgpack.unpackb
+            else:
+                self.receive_zmq = self.socket.recv_string
+                self.serialize_zmq = json.loads
+        except:
+            traceback.print_exc()
         self.ipaddr = None
         self.connect(ipaddr)
         self.running = False
@@ -80,8 +99,10 @@ class ZMQMessage:
 
     def receive(self, sleep_ms=100):
         try:
-            s = self.socket.recv_string(zmq.NOBLOCK)
-            self.qresp.put({'cmd': 'data', 'value': s})
+            s = self.receive_zmq(zmq.NOBLOCK)
+            if self.serialize_zmq is not None:
+                data = self.serialize_zmq(s)
+                self.qresp.put({'cmd': 'data', 'value': data})
             return True
         except zmq.ZMQError:
             wx.MilliSleep(sleep_ms)
@@ -124,14 +145,14 @@ class ZMQMessage:
             if self.running:
                 self.receive()
 
-def zmq_process(ipaddr, qresp, qcmd, debug=False):
+def zmq_process(ipaddr, qresp, qcmd, fmt, debug=False):
     if not debug:
         log = ZMQLogger(qresp)
         stdout = sys.stdout
         stderr = sys.stderr
         sys.stdout = log
         sys.stderr = log
-    proc = ZMQMessage(ipaddr, qcmd, qresp)
+    proc = ZMQMessage(ipaddr, qcmd, qresp, fmt)
     # infinite loop
     proc.process()
     if not debug:
@@ -358,8 +379,7 @@ class ZMQPanel(PanelNotebookBase):
             return None
         value = resp.get('value', False)
         if command == 'data':
-            # fmt = self.settings.get('format', 'json')
-            self.tree.Update(json.loads(value), self.GetCaption())
+            self.tree.Update(value, self.GetCaption())
         elif command in ['start', 'pause', 'stop']:
             if value:
                 self.zmq_status = command
@@ -436,7 +456,7 @@ class ZMQPanel(PanelNotebookBase):
         self.stop()
         self.qresp = mp.Queue(100)
         self.qcmd = mp.Queue()
-        self.zmq = mp.Process(target=zmq_process, args=(filename, self.qresp, self.qcmd, True))
+        self.zmq = mp.Process(target=zmq_process, args=(filename, self.qresp, self.qcmd, self.settings['format'], True))
         self.zmq.start()
 
     def GetIPAddress(self):
@@ -487,6 +507,21 @@ class ZMQPanel(PanelNotebookBase):
     @classmethod
     def GetSettings(cls, parent, settings=None):
         fmt = ['json']#, 'pyobj', 'bson', 'cbor', 'cdr', 'msgpack', 'protobuf', 'ros1']
+        try:
+            import bson
+            fmt.append('bson')
+        except:
+            pass
+        try:
+            import cbor2
+            fmt.append('cbor')
+        except:
+            pass
+        try:
+            import msgpack
+            fmt.append('msgpack')
+        except:
+            pass
         props = [pg.PropChoice(['tcp://', 'ipc://', 'pgm://', 'udp://', 'inproc://'])
                    .Label('Protocol').Name('protocol').Value('tcp://'),
                  pg.PropText().Label('Address').Name('address').Value('localhost'),
