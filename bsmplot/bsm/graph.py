@@ -5,7 +5,7 @@ import matplotlib
 matplotlib.use('module://bsmplot.bsm.bsmbackend')
 import matplotlib.pyplot as plt
 from mplpanel import MPLPanel, Gcf
-from bsmutility.bsminterface import Interface
+from bsmutility.bsminterface import InterfaceRename
 
 class DataDropTarget(wx.DropTarget):
     def __init__(self, canvas):
@@ -161,7 +161,7 @@ class MatplotPanel(MPLPanel):
         self.canvas.draw()
 
 
-class Graph(Interface):
+class Graph(InterfaceRename):
     kwargs = {}
     ID_NEW_FIGURE = wx.NOT_FOUND
     ID_PANE_CLOSE = wx.NewIdRef()
@@ -190,20 +190,22 @@ class Graph(Interface):
 
     @classmethod
     def PaneMenu(cls, pane, command):
-        if not pane or not isinstance(pane, MatplotPanel):
+        if not pane or not isinstance(pane.window, MatplotPanel):
             return
         if command == cls.ID_PANE_CLOSE:
-            dp.send(signal='frame.delete_panel', panel=pane)
+            dp.send(signal='frame.delete_panel', panel=pane.window)
         elif command == cls.ID_PANE_CLOSE_OTHERS:
             mgrs = Gcf.get_all_fig_managers()
             for mgr in mgrs:
-                if mgr == pane:
+                if mgr == pane.window:
                     continue
                 dp.send(signal='frame.delete_panel', panel=mgr)
         elif command == cls.ID_PANE_CLOSE_ALL:
             mgrs = Gcf.get_all_fig_managers()
             for mgr in mgrs:
                 dp.send(signal='frame.delete_panel', panel=mgr)
+        elif command == cls.ID_PANE_RENAME:
+            cls.RenamePane(pane)
 
     @classmethod
     def initialized(cls):
@@ -266,6 +268,8 @@ class Graph(Interface):
                 minsize=(75, 75),
                 pane_menu={'rxsignal': 'bsm.graph.pane_menu',
                            'menu': [
+                               {'id':cls.ID_PANE_RENAME, 'label':'Rename'},
+                               {'type': wx.ITEM_SEPARATOR},
                                {'id':cls.ID_PANE_CLOSE, 'label':'Close\tCtrl+W'},
                                {'id':cls.ID_PANE_CLOSE_OTHERS, 'label':'Close Others'},
                                {'id':cls.ID_PANE_CLOSE_ALL, 'label':'Close All'},
