@@ -68,7 +68,7 @@ class MainFrame(FramePlus):
         self.Bind(wx.EVT_MENU, self.OnHelpAbout, id=wx.ID_ABOUT)
 
     def GetDefaultAddonPackages(self):
-        return auto_load_module
+        return super().GetDefaultAddonPackages() + auto_load_module
 
     def GetAbsoluteAddonPath(self, pkg):
         if pkg in auto_load_module:
