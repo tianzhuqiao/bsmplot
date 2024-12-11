@@ -6,6 +6,8 @@ matplotlib.use('module://bsmplot.bsm.bsmbackend')
 import matplotlib.pyplot as plt
 from mplpanel import MPLPanel, Gcf
 from bsmutility.bsminterface import InterfaceRename
+from bsmutility.bsmxpm import polyline_svg
+from bsmutility.utility import svg_to_bitmap
 
 class DataDropTarget(wx.DropTarget):
     def __init__(self, canvas):
@@ -169,6 +171,8 @@ class Graph(InterfaceRename):
     ID_PANE_CLOSE_ALL = wx.NewIdRef()
     MENU_NEW_FIG = 'File:New:Figure\tCtrl+P'
 
+    icon = None
+
     @classmethod
     def initialize(cls, frame, **kwargs):
         super().initialize(frame, **kwargs)
@@ -187,6 +191,8 @@ class Graph(InterfaceRename):
         dp.connect(cls.SetActive, 'frame.activate_panel')
         dp.connect(cls.OnBufferChanged, 'sim.buffer_changed')
         dp.connect(cls.PaneMenu, 'bsm.graph.pane_menu')
+
+        cls.icon = svg_to_bitmap(polyline_svg, win=frame)
 
     @classmethod
     def PaneMenu(cls, pane, command):
@@ -273,7 +279,8 @@ class Graph(InterfaceRename):
                                {'id':cls.ID_PANE_CLOSE, 'label':'Close\tCtrl+W'},
                                {'id':cls.ID_PANE_CLOSE_OTHERS, 'label':'Close Others'},
                                {'id':cls.ID_PANE_CLOSE_ALL, 'label':'Close All'},
-                               ]})
+                               ]},
+                icon=cls.icon)
         return fig
 
 
