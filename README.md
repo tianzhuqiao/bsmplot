@@ -25,7 +25,7 @@ $ bsmplot --init
 - Matlab (.mat)
 - [ZMQ](https://zeromq.org/) subscriber. **json** format is supported by defaut. If corresponding package is installed, the following format is also supported
     - [bson](https://github.com/py-bson/bson)
-    - [cbor](shttps://github.com/agronholm/cbor2)
+    - [cbor](https://github.com/agronholm/cbor2)
     - [msgpack](https://msgpack.org/)
 
 ## Plot the data
