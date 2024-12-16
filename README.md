@@ -23,26 +23,29 @@ $ bsmplot --init
 - PX4 [ulog](https://docs.px4.io/main/en/dev_log/ulog_file_format.html)
 - CSV
 - Matlab (.mat)
-- [ZMQ](https://zeromq.org/) subscriber
+- [ZMQ](https://zeromq.org/) subscriber. **json** format is supported by defaut. If corresponding package is installed, the following format is also supported
+    - [bson](https://github.com/py-bson/bson)
+    - [cbor](shttps://github.com/agronholm/cbor2)
+    - [msgpack](https://msgpack.org/)
 
 ## Plot the data
-To plot the data, simply double click a signal. It will either plot on the current figure window, or create one (if there is no figure window) then plot.
+To plot the data, simply double click a signal. It will plot the signal on the current figure window (or create one if there is no figure window then plot).
 
 <img src="./docs/plot.png?raw=true" width="600"></img>
 
 You can also drag the signal to the figure window.
 
-If the data has timestamp field (e.g., ulog), it will be used as the x-axis data; otherwise (e.g., csv), the x-axis will be the index by default. And you can also set some signal as x-axis data, which will be shown in **bold**.
+If the data has timestamp field (e.g., ulog), it will be used as x-axis data; otherwise (e.g., csv), the x-axis will be the index by default. And you can also set some signal as x-axis data, which will be shown in **bold**.
 
 <img src="./docs/plot3.png?raw=true" width="600"></img>
 
-Many operations of the figure can be done in the context menu (right click), and the toolbar on top. For example, to create a subplot with shared x-axis,
+Many operations of the figure can be done via the context menu (right click), and the toolbar on top. For example, to create a subplot with shared x-axis,
 
 <img src="./docs/plot2.png?raw=true" width="600"></img>
 
 ## Process the data
 
-To process the data, right click the signal, and select the function to run. Following functions are predefined
+To process the data, right click the signal, and select the function to run. Following functions are pre-defined
 
 1. Quaternion to Yaw/Pitch/Roll
 2. Radian to degree
