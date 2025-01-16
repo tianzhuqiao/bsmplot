@@ -278,7 +278,7 @@ class ZMQTree(TreeCtrlNoTimeStamp):
         keys = self.df[0].keys()
         data = {}
         for k in keys:
-            data[k] = [d[k] if k in d else np. nan for d in self.df]
+            data[k] = np.array([d[k] if k in d else np.nan for d in self.df])
         data = pd.DataFrame(data)
         if as_tree:
             data = build_tree(data)
