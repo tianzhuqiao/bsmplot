@@ -111,7 +111,8 @@ class AboutDialog(wx.Dialog):
         szAll = wx.BoxSizer(wx.VERTICAL)
 
         self.panel = wx.Panel(self, style=wx.TAB_TRAVERSAL)
-        self.panel.SetBackgroundColour(wx.WHITE)
+        clr = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
+        self.panel.SetBackgroundColour(clr)
 
         szPanelAll = wx.BoxSizer(wx.HORIZONTAL)
 
@@ -127,31 +128,20 @@ class AboutDialog(wx.Dialog):
         self.stCaption = wx.StaticText(self.panel, wx.ID_ANY, caption)
         self.stCaption.SetMaxSize((MAX_SIZE, -1))
         self.stCaption.Wrap(MAX_SIZE)
-        self.stCaption.SetFont(wx.Font(pointSize=16, family=wx.FONTFAMILY_DEFAULT,
-                                       style=wx.FONTSTYLE_NORMAL,
-                                       weight=wx.FONTWEIGHT_NORMAL,
-                                       underline=False))
+        self.stCaption.SetFont(wx.Font(wx.FontInfo(16)))
 
         szPanel.Add(self.stCaption, 0, wx.ALL | wx.EXPAND, 5)
 
-        strCopyright = f'(c) 2018-{datetime.datetime.now().year} Tianzhu Qiao.\n All rights reserved.'
+        strCopyright = f'(c) 2024-{datetime.datetime.now().year} Tianzhu Qiao.\n All rights reserved.'
         self.stCopyright = wx.StaticText(self.panel, wx.ID_ANY, strCopyright)
         self.stCopyright.SetMaxSize((MAX_SIZE, -1))
         self.stCopyright.Wrap(MAX_SIZE)
-        self.stCopyright.SetFont(wx.Font(pointSize=10, family=wx.FONTFAMILY_DEFAULT,
-                                         style=wx.FONTSTYLE_NORMAL,
-                                         weight=wx.FONTWEIGHT_NORMAL,
-                                         underline=False))
         szPanel.Add(self.stCopyright, 0, wx.ALL | wx.EXPAND, 5)
 
         build = wx.GetOsDescription() + '; wxWidgets ' + wx.version()
         self.stBuild = wx.StaticText(self.panel, wx.ID_ANY, build)
         self.stBuild.SetMaxSize((MAX_SIZE, -1))
         self.stBuild.Wrap(MAX_SIZE)
-        self.stBuild.SetFont(wx.Font(pointSize=10, family=wx.FONTFAMILY_DEFAULT,
-                                     style=wx.FONTSTYLE_NORMAL,
-                                     weight=wx.FONTWEIGHT_NORMAL,
-                                     underline=False))
         szPanel.Add(self.stBuild, 0, wx.ALL | wx.EXPAND, 5)
 
         stLine = wx.StaticLine(self.panel, style=wx.LI_HORIZONTAL)
