@@ -1,6 +1,5 @@
-import sys
 import os
-import traceback
+import shutil
 import multiprocessing
 import ctypes
 import wx
@@ -54,16 +53,26 @@ class RunApp(wx.App):
               is_flag=True,
               help='Run in debug mode.')
 @click.option('--init', is_flag=True, help=f"Initialize {PROJECT_NAME}, e.g, create desktop shortcut.")
+@click.option('--uninit', is_flag=True, help=f"Uninitialize {PROJECT_NAME}, e.g, delete desktop shortcut.")
 @click.argument('module', nargs=-1)
-def main(config, path, ignore_perspective, spawn, debug, module, init):
+def main(config, path, ignore_perspective, spawn, debug, module, init, uninit):
     if spawn and hasattr(multiprocessing, 'set_start_method'):
         multiprocessing.set_start_method('spawn')
-    if init:
+    if init or uninit:
         folder, _ = os.path.split(__file__)
         icns = f'{folder}/ico/mainframe.icns'
         ico = f'{folder}/ico/mainframe.ico'
         svg = f'{folder}/ico/mainframe.svg'
-        create_shortcut(PROJECT_NAME, icns, ico, svg)
+        targets = create_shortcut(PROJECT_NAME, icns, ico, svg)
+        if uninit:
+            if targets is None:
+                click.secho('Can\'t find the created shortcuts!', fg='red')
+                return
+            for target in targets:
+                if os.path.isdir(target):
+                    shutil.rmtree(target)
+                elif os.path.isfile(target):
+                    os.remove(target)
         return
     app = RunApp(config=config,
                  ignore_perspective=ignore_perspective,
