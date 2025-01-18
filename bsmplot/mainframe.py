@@ -1,11 +1,13 @@
 import datetime
+from packaging.version import Version
 import wx
 import wx.py
 import wx.py.dispatcher as dp
 import wx.adv
+import wx.lib.agw.hyperlink as hl
 import aui2 as aui
 from bsmutility.frameplus import FramePlus, TaskBarIcon
-from bsmutility.utility import svg_to_bitmap
+from bsmutility.utility import svg_to_bitmap, get_latest_package_version, update_package
 from .mainframexpm import  mainframe_svg
 from . import __version__
 from .bsm import auto_load_module
@@ -124,6 +126,9 @@ class AboutDialog(wx.Dialog):
         szPanel = wx.BoxSizer(wx.VERTICAL)
         szPanel.AddStretchSpacer(1)
         MAX_SIZE = 300
+        if wx.Platform == '__WXMSW__':
+            MAX_SIZE = 450
+
         caption = f'{PROJECT_NAME} {__version__}'
         self.stCaption = wx.StaticText(self.panel, wx.ID_ANY, caption)
         self.stCaption.SetMaxSize((MAX_SIZE, -1))
@@ -131,6 +136,18 @@ class AboutDialog(wx.Dialog):
         self.stCaption.SetFont(wx.Font(wx.FontInfo(16)))
 
         szPanel.Add(self.stCaption, 0, wx.ALL | wx.EXPAND, 5)
+
+        latest_ver = get_latest_package_version(PROJECT_NAME)
+        if latest_ver is not None and Version(latest_ver) > Version(__version__):
+            strLatest = f"ver {latest_ver} available, click here to upgrade"
+            self.stLatestVer = hl.HyperLinkCtrl(self.panel, wx.ID_ANY, strLatest,
+                                  URL=f"https://pypi.org/project/{PROJECT_NAME}/")
+            self.stLatestVer.SetMaxSize((MAX_SIZE, -1))
+            self.stLatestVer.SetBackgroundColour(clr)
+            szPanel.Add(self.stLatestVer, 0, wx.ALL | wx.EXPAND, 5)
+            self.stLatestVer.AutoBrowse(False)
+            self.stLatestVer.DoPopup(False)
+            self.stLatestVer.Bind(hl.EVT_HYPERLINK_LEFT, self.OnLinkClicked)
 
         strCopyright = f'(c) 2024-{datetime.datetime.now().year} Tianzhu Qiao.\n All rights reserved.'
         self.stCopyright = wx.StaticText(self.panel, wx.ID_ANY, strCopyright)
@@ -166,3 +183,14 @@ class AboutDialog(wx.Dialog):
         self.SetSizer(szAll)
         self.Layout()
         szAll.Fit(self)
+
+    def OnLinkClicked(self, event):
+        wx.BeginBusyCursor()
+        success = update_package(PROJECT_NAME)
+        wx.EndBusyCursor()
+        if success:
+            msg = f'{PROJECT_NAME} is updated, restart to use the latest version!'
+            parent = self.GetTopLevelParent()
+            dlg = wx.MessageDialog(self, msg, parent.GetLabel(), wx.OK)
+            dlg.ShowModal()
+            self.EndModal(wx.OK)
