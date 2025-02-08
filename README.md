@@ -23,6 +23,7 @@ $ bsmplot --init
 - PX4 [ulog](https://docs.px4.io/main/en/dev_log/ulog_file_format.html)
 - CSV
 - Matlab (.mat)
+- [netCDF](https://unidata.github.io/netcdf4-python/)
 - [ZMQ](https://zeromq.org/) subscriber. **json** format is supported by defaut. If corresponding package is installed, the following format is also supported
     - [bson](https://github.com/py-bson/bson)
     - [cbor](https://github.com/agronholm/cbor2)
@@ -42,6 +43,9 @@ If the data has timestamp field (e.g., ulog), it will be used as x-axis data; ot
 Many operations of the figure can be done via the context menu (right click), and the toolbar on top. For example, to create a subplot with shared x-axis,
 
 <img src="https://github.com/tianzhuqiao/bsmplot/blob/main/docs/plot2.png?raw=true" width="600"></img>
+
+If the signal has 2d/3d data, it will be shown in [glsurface](https://github.com/tianzhuqiao/glsurface) window. For 3d data, the 1st dimension will be treated as time axis.
+<img src="https://github.com/tianzhuqiao/bsmplot/blob/main/docs/glsurface.png?raw=true" width="600"></img>
 
 ## Process the data
 
