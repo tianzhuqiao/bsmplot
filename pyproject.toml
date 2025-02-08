@@ -16,8 +16,8 @@ classifiers = [
 ]
 dependencies = [
           'wxpython>=4.2.1', 'matplotlib>=3.8.1', 'numpy', 'scipy', 'click>=8.1', 'pandas',
-          'pyulog', 'propgrid>=0.1.6', 'mplpanel>=0.2.2', 'aui2>=0.1.8', 'zmq', 'netCDF4',
-          'bsmutility>=0.3.1','ply', 'charset_normalizer', 'h5py', 'packaging'
+          'pyulog', 'propgrid>=0.1.6', 'mplpanel>=0.2.3', 'aui2>=0.1.9', 'zmq', 'netCDF4',
+          'bsmutility>=0.3.2','ply', 'charset_normalizer', 'h5py', 'packaging'
       ]
 dynamic = ["version"]
 
