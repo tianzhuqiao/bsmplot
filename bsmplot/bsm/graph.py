@@ -38,6 +38,8 @@ class DataDropTarget(wx.DropTarget):
         sz = self.canvas.GetSize()
         y = sz[1]-y
         fig = self.canvas.figure
+        if len(fig.get_axes()) == 0:
+            fig.gca()
         for i, ax in enumerate(fig.get_axes()):
             if ax.bbox.contains(x*ratio, y*ratio):
                 # set the active axes here, and the caller will plot on it
