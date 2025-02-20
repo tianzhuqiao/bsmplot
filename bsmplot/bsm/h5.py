@@ -5,38 +5,38 @@ import wx
 import wx.py.dispatcher as dp
 import numpy as np
 import pandas as pd
-import netCDF4
-from netCDF4 import Dataset
+import h5py
 from bsmutility.pymgr_helpers import Gcm
 from bsmutility.fileviewbase import TreeCtrlNoTimeStamp, ListCtrlBase, PanelNotebookBase, FileViewBase
 from bsmutility.autocomplete import AutocompleteTextCtrl
 from bsmutility.utility import get_tree_item_name
 
-def load_nc(filename):
+def load_h5(filename):
     data = {}
     attrs = {}
-    nc = Dataset(filename)
+    h5 = h5py.File(filename)
     def _get_attr(v):
         attrs = {}
-        for att in v.ncattrs():
-            attrs[att] = v.getncattr(att)
+        for k, v in v.attrs.items():
+            attrs[k] = v
         return attrs
 
     def _load_group(group):
         data = {}
         attrs = {}
-        for k, v in group.variables.items():
-            data[k] = np.asarray(v[:])
-            attrs[k] = _get_attr(v)
+        for k, v in group.items():
+            if isinstance(v, h5py.Group):
+                data[k], attrs[k] = _load_group(v)
+            elif isinstance(v, h5py.Dataset):
+                data[k] = np.asarray(v)
+                attrs[k] = _get_attr(v)
 
         attrs['.'] = _get_attr(group)
 
-        for g, v in group.groups.items():
-            data[g], attrs[g] = _load_group(v)
         return data, attrs
-    data, attrs = _load_group(nc)
-    nc.close()
-    return {'nc': data}, {'nc': attrs}
+    data, attrs = _load_group(h5)
+    h5.close()
+    return {'h5': data}, {'h5': attrs}
 
 class InfoListCtrl(ListCtrlBase):
 
@@ -100,7 +100,7 @@ class AttrsDialog(wx.Dialog):
         pattern = self.search.GetValue()
         self.infoList.Fill(pattern)
 
-class NCTree(TreeCtrlNoTimeStamp):
+class H5Tree(TreeCtrlNoTimeStamp):
     ID_SHOW_ATTRIBUTES = wx.NewIdRef()
 
     def __init__(self, parent, style=wx.TR_DEFAULT_STYLE):
@@ -167,7 +167,7 @@ class NCTree(TreeCtrlNoTimeStamp):
         else:
             super().OnProcessCommand(cmd, item)
 
-class NCPanel(PanelNotebookBase):
+class H5Panel(PanelNotebookBase):
     Gcc = Gcm()
 
     def __init__(self, parent, filename=None):
@@ -177,16 +177,16 @@ class NCPanel(PanelNotebookBase):
 
     def init_pages(self):
         # data page
-        panel, self.search, self.tree = self.CreatePageWithSearch(NCTree)
+        panel, self.search, self.tree = self.CreatePageWithSearch(H5Tree)
         self.notebook.AddPage(panel, 'Data')
 
-        # load the nc
-        self.nc = None
+        # load the h5
+        self.h5 = None
 
     def Load(self, filename, add_to_history=True):
-        """load the netCDF file"""
-        u = load_nc(filename)
-        self.nc = u
+        """load the HDF5 file"""
+        u = load_h5(filename)
+        self.h5 = u
         if u:
             self.tree.Load(u, filename)
         else:
@@ -205,11 +205,11 @@ class NCPanel(PanelNotebookBase):
 
     @classmethod
     def GetFileType(cls):
-        return "netCDF files (*.nc)|*.nc|All files (*.*)|*.*"
+        return "HDF5 files (*.h5)|*.h5|All files (*.*)|*.*"
 
-class NC(FileViewBase):
-    name = 'netCDF'
-    panel_type = NCPanel
+class H5(FileViewBase):
+    name = 'hdf5'
+    panel_type = H5Panel
 
     @classmethod
     def check_filename(cls, filename):
@@ -220,13 +220,13 @@ class NC(FileViewBase):
             return True
 
         _, ext = os.path.splitext(filename)
-        return (ext.lower() in ['.nc'])
+        return (ext.lower() in ['.h5'])
 
     @classmethod
     def initialized(cls):
-        # add nc to the shell
+        # add h5 to the shell
         dp.send(signal='shell.run',
-                command='from bsmplot.bsm.nc import NC',
+                command='from bsmplot.bsm.h5 import H5',
                 prompt=False,
                 verbose=False,
                 history=False)
@@ -234,15 +234,15 @@ class NC(FileViewBase):
     @classmethod
     def get(cls, num=None, filename=None, data_only=True):
         manager = super().get(num, filename, data_only)
-        nc = None
+        h5 = None
         if manager:
-            nc = manager.nc
+            h5 = manager.h5
         elif filename:
             try:
-                nc = load_nc(filename)
+                h5 = load_h5(filename)
             except:
                 traceback.print_exc(file=sys.stdout)
-        return nc
+        return h5
 
 def bsm_initialize(frame, **kwargs):
-    NC.initialize(frame)
+    H5.initialize(frame)

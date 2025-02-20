@@ -42,6 +42,9 @@ def load_mat(filename):
         data['info']['globals'] = raw.get('__globals__', '')
 
         data['data'] = process_record(raw)
+
+        if isinstance(raw, h5py.File):
+            raw.close()
     except:
         traceback.print_exc(file=sys.stdout)
 
