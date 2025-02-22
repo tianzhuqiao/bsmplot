@@ -17,6 +17,9 @@ def process_record(d):
             data[k] = process_record(d[k])
         return data
 
+    if not hasattr(d, 'dtype'):
+        return d
+
     if d.dtype.names is None:
         if len(d) == 1 and d.dtype.name == 'object':
             return process_record(d[0])
