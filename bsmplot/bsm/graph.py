@@ -1,6 +1,5 @@
 import wx
 import wx.py.dispatcher as dp
-import numpy as np
 import matplotlib
 matplotlib.use('module://bsmplot.bsm.bsmbackend')
 import matplotlib.pyplot as plt
@@ -75,14 +74,14 @@ class MatplotPanel(MPLPanel):
                 if not hasattr(l, 'trace_signal'):
                     continue
                 signal, num, path = l.trace_signal
-                resp = dp.send(signal, num=num, path=path)
+                resp = dp.send(**l.trace_signal)
                 if not resp:
                     continue
                 # ignore the zmq when different "num"
-                resp = [r for r in resp if len(r[1]) == 2 and r[1][0] is not None and r[1][1] is not None]
+                resp = [r for r in resp if len(r[1]) == 3 and r[1][0] is not None and r[1][1] is not None]
                 if not resp:
                     continue
-                x, y = resp[0][1]
+                x, y, _ = resp[0][1]
                 if x is None or y is None:
                     continue
                 l.set_data(x, y)
@@ -97,72 +96,11 @@ class MatplotPanel(MPLPanel):
                 ax.autoscale_view()
         dp.send('graph.axes_updated', figure=self.figure, axes=updated_ax)
 
-    def simLoad(self, num):
-        for ax in self.figure.get_axes():
-            for l in ax.lines:
-                if hasattr(l, 'trace'):
-                    sz = len(l.get_ydata())
-                    for s in l.trace:
-                        if (not s) or (not s.startswith(str(num) + '.')):
-                            continue
-                        #dispatcher.send(signal='sim.trace_buf', objects=s, size=sz)
-
     def show(self):
         """show figure"""
         if self.IsShownOnScreen() is False:
             self.canvas.draw()
             dp.send('frame.show_panel', panel=self)
-
-    def update_buffer(self, bufs):
-        """update the data used in plot_trace"""
-        for ax in self.figure.get_axes():
-            for l in ax.lines:
-                if hasattr(l, 'trace'):
-                    x = l.trace[0]
-                    y = l.trace[1]
-                    if x is None:
-                        if y in bufs:
-                            l.set_data(np.arange(len(bufs[y])), bufs[y])
-                    elif x in bufs or y in bufs:
-                        xd = l.get_xdata()
-                        yd = l.get_ydata()
-                        if y in bufs:
-                            yd = bufs[y]
-                        if x in bufs:
-                            xd = bufs[x]
-                        if len(xd) != len(yd):
-                            sz = min(len(xd), len(yd))
-                            xd = xd[0:sz]
-                            yd = yd[0:sz]
-                        l.set_data(xd, yd)
-                    if hasattr(l, 'autorelim') and l.autorelim:
-                        #Need both of these in order to rescale
-                        ax.relim()
-                        ax.autoscale_view()
-        self.canvas.draw()
-
-    def plot_trace(self, x, y, autorelim, *args, **kwargs):
-        """plot and trace"""
-        if y is None:
-            return
-        if x is None:
-            l, = self.figure.gca().plot(list(y.values())[0], *args, **kwargs)
-            l.trace = [None, list(y.keys())[0]]
-        else:
-            xd = list(x.values())[0]
-            yd = list(y.values())[0]
-            if len(xd) != len(yd):
-                sz = min(len(xd), len(yd))
-                if sz > 0:
-                    xd = xd[0:sz]
-                    yd = yd[0:sz]
-                else:
-                    xd = 0
-                    yd = 0
-            l, = self.figure.gca().plot(xd, yd, *args, **kwargs)
-            l.trace = [list(x.keys())[0], list(y.keys())[0]]
-        l.autorelim = autorelim
-        self.canvas.draw()
 
 
 class Graph(InterfaceRename):
@@ -191,7 +129,6 @@ class Graph(InterfaceRename):
         if cls.ID_NEW_FIGURE is not wx.NOT_FOUND:
             dp.connect(cls.ProcessCommand, 'bsm.figure')
         dp.connect(cls.SetActive, 'frame.activate_panel')
-        dp.connect(cls.OnBufferChanged, 'sim.buffer_changed')
         dp.connect(cls.PaneMenu, 'bsm.graph.pane_menu')
 
         cls.icon = svg_to_bitmap(polyline_svg, win=frame)
@@ -225,12 +162,6 @@ class Graph(InterfaceRename):
                 history=False)
 
     @classmethod
-    def OnBufferChanged(cls, bufs):
-        """the buffer has be changes, update the plot_trace"""
-        for p in Gcf.get_all_fig_managers():
-            p.update_buffer(bufs)
-
-    @classmethod
     def SetActive(cls, pane):
         if pane and isinstance(pane, MatplotPanel):
             if MatplotPanel.GetActive() == pane:
@@ -248,7 +179,6 @@ class Graph(InterfaceRename):
     @classmethod
     def uninitialized(cls):
         dp.disconnect(cls.SetActive, 'frame.activate_panel')
-        dp.disconnect(cls.OnBufferChanged, 'sim.buffer_changed')
         dp.disconnect(cls.PaneMenu, 'bsm.graph.pane_menu')
         super().uninitialized()
 

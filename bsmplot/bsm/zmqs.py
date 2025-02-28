@@ -23,6 +23,8 @@ from bsmutility.pymgr_helpers import Gcm
 from bsmutility.utility import build_tree, get_tree_item_name
 from bsmutility.fileviewbase import TreeCtrlNoTimeStamp, PanelNotebookBase, FileViewBase
 from bsmutility.signalselsettingdlg import PropSettingDlg
+from bsmutility.richdialog import RichNumberEntryDialog
+from bsmutility.surface import SurfacePanel
 
 def flatten(dictionary, parent_key='', separator='.'):
     items = []
@@ -31,6 +33,13 @@ def flatten(dictionary, parent_key='', separator='.'):
         if isinstance(value, MutableMapping):
             items.extend(flatten(value, new_key, separator=separator).items())
         else:
+            if isinstance(value, list):
+                try:
+                    v = np.asarray(value)
+                    if np.issubdtype(v.dtype, np.number) and (v.ndim > 1):
+                        value = v
+                except:
+                    pass
             if isinstance(value, list):
                 if len(value) == 1:
                     items.append((new_key, value))
@@ -168,20 +177,25 @@ class ZMQTree(TreeCtrlNoTimeStamp):
         dp.connect(self.RetrieveData, 'zmqs.retrieve')
         self.last_updated_time = datetime.datetime.now()
         self._graph_retrieved = True
+        self._num_rx = 0
+        self.exclude_keys = ['_frame_id']
+        # minimal time (in s) to update plot
+        self._data_update_gap = self.LoadConfig('data_update_gap', 1)
 
-    def RetrieveData(self, num, path):
+    def RetrieveData(self, num, path, **kwargs):
         self._graph_retrieved = True
         if num != self.num:
-            return None, None
-        y = self.GetItemDataFromPath(path)
+            return None, None, None
+        since = kwargs.get('last_frame_id', -1)
+        y = self._get_data_from_path(path, since=since)
         if y is None:
-            return None, None
+            return None, None, None
         x = None
         if self.x_path:
-            x = self.GetItemDataFromPath(self.x_path)
+            x = self._get_data_from_path(self.x_path, since=since)
         if x is None or len(x) != len(y):
             x = np.arange(0, len(y))
-        return x, y
+        return x, y, self._num_rx
 
     def Load(self, data, filename=None):
         # flatten the tree, so make it easy to combine multiple frames together
@@ -216,13 +230,16 @@ class ZMQTree(TreeCtrlNoTimeStamp):
             self.df = df
 
     def Update(self, data, filename=None):
+        if isinstance(data, MutableMapping):
+            self._num_rx += 1
+            data['_frame_id'] = self._num_rx
         if not self.data:
             self.Load(data, filename)
         else:
             data_f = flatten(data)
             self.df.append(data_f)
             now = datetime.datetime.now()
-            if self._graph_retrieved and (now - self.last_updated_time).seconds > 1:
+            if self._graph_retrieved and (now - self.last_updated_time).total_seconds() >= self._data_update_gap:
                 # notify the graph
                 self._graph_retrieved = False
                 self.last_updated_time = now
@@ -246,7 +263,11 @@ class ZMQTree(TreeCtrlNoTimeStamp):
         if isinstance(data, MutableMapping):
             # folder to list children (get_children), just return
             return data
-        # check if in
+
+        return self._get_data_from_path(path)
+
+    def _get_data_from_path(self, path, since=-1):
+        # check if in converted item
         idx = [1, 0]
         name = get_tree_item_name(path)
         if name in self._converted_item:
@@ -259,7 +280,7 @@ class ZMQTree(TreeCtrlNoTimeStamp):
             return data
 
         key = self.GetItemKeyFromPath(path)
-        data = [d[key] if key in d else np.nan for d in self.df]
+        data = [d[key] if key in d else np.nan for d in self.df if d['_frame_id'] > since]
         data = np.array(data)
         return None if pd.isna(data).all() else data
 
@@ -267,7 +288,7 @@ class ZMQTree(TreeCtrlNoTimeStamp):
         line = super().PlotItem(item, confirm=confirm)
         if line is not None:
             path = self.GetItemPath(item)
-            line.trace_signal = ["zmqs.retrieve", self.num, path]
+            line.trace_signal = {'signal': "zmqs.retrieve", 'num': self.num, 'path':path}
             line.autorelim = True
         self._graph_retrieved = True
 
@@ -284,6 +305,20 @@ class ZMQTree(TreeCtrlNoTimeStamp):
             data = build_tree(data)
         return data
 
+    def SetDataUpdateGap(self, gap, save_as_default=False):
+        self._data_update_gap = gap
+        if save_as_default:
+            self.SetConfig(data_update_gap = gap)
+
+    def GetDataUpdateGap(self):
+        return self._data_update_gap
+
+    def plot(self, x, y, label, step=False):
+        plt = super().plot(x, y, label, step=step)
+        if isinstance(plt, SurfacePanel):
+            plt.canvas.SetBufLen(256)
+        return plt
+
 class ZMQPanel(PanelNotebookBase):
     Gcc = Gcm()
     ID_RUN = wx.NewIdRef()
@@ -292,6 +327,7 @@ class ZMQPanel(PanelNotebookBase):
     ID_EXPORT_CSV = wx.NewIdRef()
     ID_EXPORT_JSON = wx.NewIdRef()
     ID_IMPORT_JSON = wx.NewIdRef()
+    ID_SET_DATA_UPDATE_GAP = wx.NewIdRef()
 
     def __init__(self, parent, filename=None):
         PanelNotebookBase.__init__(self, parent, filename=filename)
@@ -588,6 +624,13 @@ class ZMQPanel(PanelNotebookBase):
                     df.to_csv(path, index=False)
                 else:
                     print('Invalid data')
+        elif eid == self.ID_SET_DATA_UPDATE_GAP:
+            msg = 'The minimal waiting time to notify the plot(s) to update:'
+            parent = self.GetTopLevelParent()
+            dlg = RichNumberEntryDialog(self, msg, 'time (ms)', 'Save the setting as default', parent.GetLabel(),
+                                       int(self.tree.GetDataUpdateGap()*1000), 0, 10000)
+            if dlg.ShowModal() == wx.ID_OK:
+                self.tree.SetDataUpdateGap(dlg.GetValue()/1000, dlg.IsCheckBoxChecked())
         else:
             super().OnProcessCommand(event)
 
@@ -599,6 +642,13 @@ class ZMQPanel(PanelNotebookBase):
             event.Enable(self.zmq is not None and self.zmq.is_alive() and self.zmq_status == 'start')
         else:
             super().OnUpdateCmdUI(event)
+
+    def GetMoreMenu(self):
+        menu = super().GetMoreMenu()
+        menu.AppendSeparator()
+
+        menu.Append(self.ID_SET_DATA_UPDATE_GAP, 'Set the plot update period')
+        return menu
 
 class ZMQ(FileViewBase):
     name = 'ZMQ'
