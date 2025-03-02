@@ -23,6 +23,7 @@ $ bsmplot --init
 - PX4 [ulog](https://docs.px4.io/main/en/dev_log/ulog_file_format.html)
 - CSV
 - Matlab (.mat)
+- [HDF5](https://docs.h5py.org/en/stable/)
 - [netCDF](https://unidata.github.io/netcdf4-python/)
 - [ZMQ](https://zeromq.org/) subscriber. **json** format is supported by defaut. If corresponding package is installed, the following format is also supported
     - [bson](https://github.com/py-bson/bson)
