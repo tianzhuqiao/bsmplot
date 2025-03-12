@@ -188,8 +188,8 @@ class VcdTree(TreeCtrlWithTimeStamp):
             menu.Insert(pos=idx+1, id=wx.ID_ANY, text='As type', submenu=type_menu)
         return menu
 
-    def OnProcessCommand(self, cmd, item):
-        super().OnProcessCommand(cmd, item)
+    def doProcessCommand(self, cmd, item):
+        super().doProcessCommand(cmd, item)
         text = self.GetItemText(item)
         path = super().GetItemPath(item)
         data = self.GetItemFullDataFromPath(path)

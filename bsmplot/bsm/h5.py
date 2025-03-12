@@ -159,13 +159,13 @@ class H5Tree(TreeCtrlNoTimeStamp):
             menu.InsertSeparator(1)
         return menu
 
-    def OnProcessCommand(self, cmd, item):
+    def doProcessCommand(self, cmd, item):
         if cmd == self.ID_SHOW_ATTRIBUTES:
             attr = self.GetItemAttrs(item)
             dlg = AttrsDialog(self, attr)
             dlg.ShowModal()
         else:
-            super().OnProcessCommand(cmd, item)
+            super().doProcessCommand(cmd, item)
 
 class H5Panel(PanelNotebookBase):
     Gcc = Gcm()
