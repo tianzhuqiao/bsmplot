@@ -183,9 +183,11 @@ class NCPanel(PanelNotebookBase):
         # load the nc
         self.nc = None
 
-    def Load(self, filename, add_to_history=True):
+    def doLoad(self, filename, add_to_history=True, data=None):
         """load the netCDF file"""
-        u = load_nc(filename)
+        u = data
+        if u is None:
+            u = self.open(filename)
         self.nc = u
         if u:
             self.tree.Load(u, filename)
@@ -193,7 +195,7 @@ class NCPanel(PanelNotebookBase):
             self.tree.Load(None)
             add_to_history = False
 
-        super().Load(filename, add_to_history=add_to_history)
+        super().doLoad(filename, add_to_history=add_to_history, data=data)
 
     def OnDoSearch(self, evt):
         pattern = self.search.GetValue()
@@ -206,6 +208,10 @@ class NCPanel(PanelNotebookBase):
     @classmethod
     def GetFileType(cls):
         return "netCDF files (*.nc)|*.nc|All files (*.*)|*.*"
+
+    @classmethod
+    def do_open(cls, filename):
+        return load_nc(filename)
 
 class NC(FileViewBase):
     name = 'netCDF'

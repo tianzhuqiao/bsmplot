@@ -1,6 +1,4 @@
 import os
-import sys
-import traceback
 import re
 import numpy as np
 import pandas as pd
@@ -390,16 +388,12 @@ class VCD:
         return self.parse(filename, encoding)
 
 def load_vcd(filename, encoding=None, lex_only=False, yacc_only=False, verbose=False):
-    try:
-        path, filename = os.path.split(filename)
-        if path:
-            os.chdir(path)
-        vcd = VCD(lex_only, verbose)
-        if yacc_only:
-            click.echo(vcd.parse(filename, encoding))
-            click.echo('\n')
-        else:
-            return vcd.gen(filename, encoding)
-    except:
-        traceback.print_exc(file=sys.stdout)
-    return None
+    path, filename = os.path.split(filename)
+    if path:
+        os.chdir(path)
+    vcd = VCD(lex_only, verbose)
+    if yacc_only:
+        click.echo(vcd.parse(filename, encoding))
+        click.echo('\n')
+    else:
+        return vcd.gen(filename, encoding)

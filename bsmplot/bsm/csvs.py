@@ -10,20 +10,17 @@ from bsmutility.utility import build_tree
 from bsmutility.fileviewbase import TreeCtrlNoTimeStamp, PanelNotebookBase, FileViewBase
 
 def read_csv(filename):
-    try:
-        sep = ','
-        with open(filename, encoding='utf-8') as fp:
-            line = fp.readline()
-            s = Sniffer()
-            d = s.sniff(line)
-            sep = d.delimiter
-        csv = pd.read_csv(filename, sep=sep)
-        d = {}
-        for c in csv:
-            d[c] = csv[c]
-        return build_tree(build_tree(csv), '->')
-    except:
-        traceback.print_exc(file=sys.stdout)
+    sep = ','
+    with open(filename, encoding='utf-8') as fp:
+        line = fp.readline()
+        s = Sniffer()
+        d = s.sniff(line)
+        sep = d.delimiter
+    csv = pd.read_csv(filename, sep=sep)
+    d = {}
+    for c in csv:
+        d[c] = csv[c]
+    return build_tree(build_tree(csv), '->')
 
 class CsvTree(TreeCtrlNoTimeStamp):
     pass
@@ -45,13 +42,15 @@ class CsvPanel(PanelNotebookBase):
         # load the csv
         self.csv = None
 
-    def Load(self, filename, add_to_history=True):
+    def doLoad(self, filename, add_to_history=True, data=None):
         """load the csv file"""
-        u = read_csv(filename)
+        u = data
+        if u is None:
+            u = self.open(filename)
         self.csv = u
         self.tree.Load(u, filename)
 
-        super().Load(filename, add_to_history=add_to_history and u is not None)
+        super().doLoad(filename, add_to_history=add_to_history and u is not None, data=data)
 
     def OnDoSearch(self, evt):
         pattern = self.search.GetValue()
@@ -61,6 +60,11 @@ class CsvPanel(PanelNotebookBase):
     @classmethod
     def GetFileType(cls):
         return "csv files (*.csv)|*.csv|All files (*.*)|*.*"
+
+    @classmethod
+    def do_open(cls, filename):
+        return read_csv(filename)
+
 
 class CSV(FileViewBase):
     name = 'csv'

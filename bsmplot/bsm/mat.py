@@ -35,21 +35,18 @@ def process_record(d):
 def load_mat(filename):
     data = {'info': {}, 'data': {}}
     try:
-        try:
-            raw = io.loadmat(filename)
-        except:
-            raw = h5py.File(filename,'r')
-
-        data['info']['version'] = raw.get('__version__', '')
-        data['info']['header'] = raw.get('__header__', '')
-        data['info']['globals'] = raw.get('__globals__', '')
-
-        data['data'] = process_record(raw)
-
-        if isinstance(raw, h5py.File):
-            raw.close()
+        raw = io.loadmat(filename)
     except:
-        traceback.print_exc(file=sys.stdout)
+        raw = h5py.File(filename,'r')
+
+    data['info']['version'] = raw.get('__version__', '')
+    data['info']['header'] = raw.get('__header__', '')
+    data['info']['globals'] = raw.get('__globals__', '')
+
+    data['data'] = process_record(raw)
+
+    if isinstance(raw, h5py.File):
+        raw.close()
 
     return data
 
@@ -113,9 +110,11 @@ class MatPanel(PanelNotebookBase):
         # load the mat
         self.mat = None
 
-    def Load(self, filename, add_to_history=True):
+    def doLoad(self, filename, add_to_history=True, data=None):
         """load the mat file"""
-        u = load_mat(filename)
+        u = data
+        if u is None:
+            u = self.open(filename)
         self.mat = u
         if u:
             self.tree.Load(u['data'], filename)
@@ -125,7 +124,7 @@ class MatPanel(PanelNotebookBase):
             self.infoList.Load(None)
             add_to_history = False
 
-        super().Load(filename, add_to_history=add_to_history)
+        super().doLoad(filename, add_to_history=add_to_history, data=data)
 
     def OnDoSearch(self, evt):
         pattern = self.search.GetValue()
@@ -138,6 +137,11 @@ class MatPanel(PanelNotebookBase):
     @classmethod
     def GetFileType(cls):
         return "mat files (*.mat)|*.mat|All files (*.*)|*.*"
+
+    @classmethod
+    def do_open(cls, filename):
+        return load_mat(filename)
+
 
 class Mat(FileViewBase):
     name = 'mat'

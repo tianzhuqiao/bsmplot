@@ -11,11 +11,7 @@ from bsmutility.fileviewbase import ListCtrlBase, TreeCtrlWithTimeStamp, PanelNo
 from bsmutility.utility import build_tree
 
 def load_ulog(filename):
-    try:
-        ulg = pyulog.ULog(filename)
-    except:
-        traceback.print_exc(file=sys.stdout)
-        return {}
+    ulg = pyulog.ULog(filename)
 
     data = {}
     for d in ulg.data_list:
@@ -221,9 +217,11 @@ class ULogPanel(PanelNotebookBase):
 
         self.ulg = None
 
-    def Load(self, filename, add_to_history=True):
+    def doLoad(self, filename, add_to_history=True, data=None):
         """load the ulog file"""
-        u = load_ulog(filename)
+        u = data
+        if u is None:
+            u = self.open(filename)
         self.ulg = u
         if u:
             self.tree.Load(u['data'], filename)
@@ -239,7 +237,7 @@ class ULogPanel(PanelNotebookBase):
             self.chgParamList.Load(None)
             add_to_history = False
 
-        super().Load(filename, add_to_history=add_to_history)
+        super().doLoad(filename, add_to_history=add_to_history, data=data)
 
     def OnDoSearch(self, evt):
         pattern = self.search.GetValue()
@@ -265,6 +263,11 @@ class ULogPanel(PanelNotebookBase):
     @classmethod
     def GetFileType(cls):
         return "ulog files (*.ulg;*.ulog)|*.ulg;*.ulog|All files (*.*)|*.*"
+
+    @classmethod
+    def do_open(cls, filename):
+        return load_ulog(filename)
+
 
 class ULog(FileViewBase):
     name = 'ulog'

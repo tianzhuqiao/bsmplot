@@ -386,9 +386,11 @@ class VcdPanel(PanelNotebookBase):
 
         self.vcd = None
 
-    def Load(self, filename, add_to_history=True):
+    def doLoad(self, filename, add_to_history=True, data=None):
         """load the vcd file"""
-        u = load_vcd3(filename)
+        u = data
+        if u is None:
+            u = self.open(filename)
         self.vcd = u
         self.filename = filename
         if u:
@@ -402,7 +404,7 @@ class VcdPanel(PanelNotebookBase):
             self.commentList.Load(None)
             add_to_history = False
 
-        super().Load(filename, add_to_history=add_to_history)
+        super().doLoad(filename, add_to_history=add_to_history, data=data)
 
     def OnDoSearch(self, evt):
         pattern = self.search.GetValue()
@@ -420,6 +422,11 @@ class VcdPanel(PanelNotebookBase):
     @classmethod
     def GetFileType(cls):
         return "vcd files (*.vcd)|*.vcd|All files (*.*)|*.*"
+
+    @classmethod
+    def do_open(cls, filename):
+        return load_vcd3(filename)
+
 
 class VCD(FileViewBase):
     name = 'vcd'

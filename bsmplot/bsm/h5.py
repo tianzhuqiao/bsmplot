@@ -183,9 +183,11 @@ class H5Panel(PanelNotebookBase):
         # load the h5
         self.h5 = None
 
-    def Load(self, filename, add_to_history=True):
+    def doLoad(self, filename, add_to_history=True, data=None):
         """load the HDF5 file"""
-        u = load_h5(filename)
+        u = data
+        if data is None:
+            u = self.open(filename)
         self.h5 = u
         if u:
             self.tree.Load(u, filename)
@@ -193,7 +195,7 @@ class H5Panel(PanelNotebookBase):
             self.tree.Load(None)
             add_to_history = False
 
-        super().Load(filename, add_to_history=add_to_history)
+        super().doLoad(filename, add_to_history=add_to_history, data=data)
 
     def OnDoSearch(self, evt):
         pattern = self.search.GetValue()
@@ -206,6 +208,11 @@ class H5Panel(PanelNotebookBase):
     @classmethod
     def GetFileType(cls):
         return "HDF5 files (*.h5)|*.h5|All files (*.*)|*.*"
+
+    @classmethod
+    def do_open(cls, filename):
+        return load_h5(filename)
+
 
 class H5(FileViewBase):
     name = 'hdf5'
