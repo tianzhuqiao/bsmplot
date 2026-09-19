@@ -1,6 +1,7 @@
 import os
 import sys
 import traceback
+from collections.abc import MutableMapping
 import wx
 import wx.py.dispatcher as dp
 import numpy as np
@@ -10,10 +11,12 @@ from netCDF4 import Dataset
 from bsmutility.pymgr_helpers import Gcm
 from bsmutility.fileviewbase import TreeCtrlNoTimeStamp, ListCtrlBase, PanelNotebookBase, FileViewBase
 from bsmutility.autocomplete import AutocompleteTextCtrl
-from bsmutility.utility import get_tree_item_name
+from bsmutility.utility import get_tree_item_name, get_data_from_path, \
+                               get_variable_name
 
 def load_nc(filename):
     data = {}
+    raw_data = {}
     attrs = {}
     nc = Dataset(filename)
     def _get_attr(v):
@@ -24,19 +27,21 @@ def load_nc(filename):
 
     def _load_group(group):
         data = {}
+        raw_data = {}
         attrs = {}
         for k, v in group.variables.items():
             data[k] = np.asarray(v[:])
+            raw_data[k] = v[:]
             attrs[k] = _get_attr(v)
 
         attrs['.'] = _get_attr(group)
 
         for g, v in group.groups.items():
-            data[g], attrs[g] = _load_group(v)
-        return data, attrs
-    data, attrs = _load_group(nc)
+            data[g], attrs[g], raw_data[g] = _load_group(v)
+        return data, attrs, raw_data
+    data, attrs, raw_data = _load_group(nc)
     nc.close()
-    return {'nc': data}, {'nc': attrs}
+    return {'nc': data}, {'nc': attrs}, {'nc': raw_data}
 
 class InfoListCtrl(ListCtrlBase):
 
@@ -106,6 +111,7 @@ class NCTree(TreeCtrlNoTimeStamp):
     def __init__(self, parent, style=wx.TR_DEFAULT_STYLE):
         super().__init__(parent, style)
         self.attrs = {}
+        self.raw_data = {}
 
     def GetItemDataFromPath(self, path):
         d = super().GetItemDataFromPath(path)
@@ -119,8 +125,9 @@ class NCTree(TreeCtrlNoTimeStamp):
         return children
 
     def Load(self, data, filename=None):
-        # data: [data, attrs]
+        # data: [data, attrs, raw_data]
         self.attrs = data[1]
+        self.raw_data = data[2]
         super().Load(data[0], filename)
 
     def GetItemAttrs(self, item):
@@ -148,6 +155,43 @@ class NCTree(TreeCtrlNoTimeStamp):
                 return None
             d = d[p]
         return d
+
+    def GetItemRawData(self, item):
+        if item == self.GetRootItem():
+            return self.raw_data
+
+        path = self.GetItemPath(item)
+        return get_data_from_path(path, self.raw_data)
+
+    def GetItemExportData(self, item):
+        y = self.GetItemRawData(item)
+        path = self.GetItemPath(item)
+        name = self.GetItemText(item)
+        data = [[name, y]]
+        selections = self.GetSelections()
+        if self.ItemHasChildren(item):
+            data = y
+            if isinstance(y, MutableMapping):
+                if np.all([not isinstance(d, MutableMapping) for d in y]):
+                    data = pd.DataFrame(data)
+        else:
+            for sel in selections:
+                if self.ItemHasChildren(sel) or sel == item:
+                    continue
+                y = self.GetItemRawData(sel)
+                name = self.GetItemText(sel)
+                data.append([name, y])
+
+            if len(data) == 1:
+                data = data[0][1]
+            else:
+                data = {d[0]:d[1] for d in data}
+
+        if len(selections) <= 1:
+            output_name = get_variable_name(path)
+        else:
+            output_name = "_data"
+        return output_name, data
 
     def GetItemMenu(self, item):
         menu = super().GetItemMenu(item)
