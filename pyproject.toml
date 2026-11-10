@@ -7,7 +7,7 @@ name = "bsmplot"
 authors = [
   { name="Tianzhu Qiao", email="tq@feiyilin.com" },
 ]
-license = {file = "LICENSE"}
+license-files = ["LICENSE"]
 description='bsmplot is a tool to visualize time series'
 readme = "README.md"
 requires-python = ">=3.0"
@@ -17,7 +17,8 @@ classifiers = [
 dependencies = [
           'wxpython>=4.2.1', 'matplotlib>=3.8.1', 'numpy', 'scipy', 'click>=8.1', 'pandas',
           'pyulog', 'mplpanel>=0.2.4', 'aui2>=0.2.0', 'zmq', 'netCDF4',
-          'bsmutility>=0.3.9','ply', 'charset_normalizer', 'h5py', 'packaging'
+          'bsmutility>=0.4.2','ply', 'charset_normalizer', 'h5py', 'packaging',
+          'six'
       ]
 dynamic = ["version"]
 
