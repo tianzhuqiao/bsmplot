@@ -7,7 +7,7 @@ import datetime
 import multiprocessing as mp
 from collections.abc import MutableMapping
 import collections
-import six.moves.queue as Queue
+import queue as Queue
 import wx
 import wx.py.dispatcher as dp
 import numpy as np

@@ -6,7 +6,7 @@ import keyword
 import re
 import pickle
 from pathlib import Path
-import six
+from collections.abc import MutableMapping
 import wx
 import wx.svg
 import wx.py.dispatcher as dp
@@ -37,12 +37,12 @@ def MakeBitmap(red, green, blue, alpha=128, size=None, scale_factor=1):
     # Next we'll use the pixel accessor to set the border pixels
     # to be fully opaque
     pixels = pixelData.GetPixels()
-    for x in six.moves.range(w):
+    for x in range(w):
         pixels.MoveTo(pixelData, x, 0)
         pixels.Set(red, green, blue, wx.ALPHA_OPAQUE)
         pixels.MoveTo(pixelData, x, w - 1)
         pixels.Set(red, green, blue, wx.ALPHA_OPAQUE)
-    for y in six.moves.range(h):
+    for y in range(h):
         pixels.MoveTo(pixelData, 0, y)
         pixels.Set(red, green, blue, wx.ALPHA_OPAQUE)
         pixels.MoveTo(pixelData, h - 1, y)
